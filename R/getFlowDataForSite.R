@@ -14,7 +14,15 @@
 #' mylist <- getFlowDataForSite("07063000")
 #' head(mylist$df)
 #' print(mylist$siteinfo)
-getFlowDataForSite <- function(site) {
+getFlowDataForSite <- function(site, insideUSGSfirewall=FALSE) {
+
+  # apparently some sites are set to allow access from within USGS firewall ONLY
+  # if we're inside the firewall, set this to TRUE in order to gain access to some
+  # of these sites. note that these sites contain *APPROVED* data, so it is
+  # unclear why public access is disabled.s
+  if (insideUSGSfirewall) {
+    dataRetrieval::setAccess('internal')
+  }
 
   # these NWIS peak value codes indicate:
   # 5	discharge affected to unknown degree by regulation or diversion**

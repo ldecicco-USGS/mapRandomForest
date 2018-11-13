@@ -14,6 +14,7 @@ knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>"
 )
+options(tibble.print_max = Inf)
 ```
 
 This example shows how the functions modeled after Brian Breaker's scripts may be used to recreate the data files used in his random forest model for the Mississippi Alluvial Plain (MAP) project area. The model is referred to hereafter as the 'RFMAP' model.
@@ -89,8 +90,8 @@ The following code will fire up 5 local workers and download all discharge data 
 
 site_numbers <- unique(sites_sp$site_no)
 
-# set up 5 workers
-cl <- parallel::makeCluster(5)
+# set up 7 workers on Linux boxs
+cl <- parallel::makeCluster(7)
 
 # must register parallel backend with the 'foreach' package
 doParallel::registerDoParallel(cl)
@@ -101,7 +102,7 @@ monthly_discharge <- foreach::foreach(b=site_numbers, .combine=rbind,
                                        .errorhandling='remove') %dopar% {
   
   print(b)                                          
-  data_list <- mapRandomForest::getFlowDataForSite(b)
+  data_list <- mapRandomForest::getFlowDataForSite(b, insideUSGSfirewall=TRUE)
   data.table(site_no=rep(b,nrow(data_list$df)), date=data_list$df$date,
                    discharge=data_list$df$discharge,baseflow=data_list$df$baseflow,
                    count_non_na=data_list$df$count_non_na, is_regulated=data_list$df$is_regulated)
@@ -157,6 +158,10 @@ comparison_df <- dplyr::left_join(x=monthly_discharge_orig, y=monthly_discharge_
 comparison_df$site_no <- as.factor(comparison_df$site_no)
 
 missing_from_current_df <- comparison_df %>% dplyr::filter(is.na(discharge))
+
+missing_records <- count(missing_from_current_df,siteNo)
+missing_records <- missing_records[order(missing_records$n,decreasing = TRUE),]
+
 ```
 
-Approximately 777 streamflow records (out of about 147,000) in the original dataset are either unobtainable because of public availibility settings in NWIS Wes, or are excluded in the current set of scripts owing to a stricter interpretation of the peak flow file codes indicating highly regulated or channelized flow conditions.
+Approximately 777 streamflow records (out of about 147,000) in the original dataset are either unobtainable because of public availibility settings in NWIS Web, or are excluded in the current set of scripts owing to a stricter interpretation of the peak flow file codes indicating highly regulated or channelized flow conditions.

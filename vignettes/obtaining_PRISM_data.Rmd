@@ -34,7 +34,8 @@ library(data.table)
 
 # The monthly PRISM dataset is many gigabytes of data; download this locally and change the
 # path descriptor as appropriate if running the vignettes locally
-path_to_PRISM_data <- "/Volumes/Samsung_T5/Users/SMWData/Weather_and_GIS/PRISM_Monthly_4k"
+#path_to_PRISM_data <- "/Volumes/Samsung_T5/Users/SMWData/Weather_and_GIS/PRISM_Monthly_4k"
+path_to_PRISM_data <- "/home/nobody/geodata_and_weather_data/PRISM_Monthly_4k"
 
 test_PRISM_file <- paste(path_to_PRISM_data,"ppt","PRISM_ppt_stable_4kmM2_1896_bil.bil",sep="/")
 test_PRISM_raster <- raster::raster(test_PRISM_file)
@@ -68,6 +69,8 @@ Next, we create a wrapper function around the package function `getRasterMean`, 
 
 getRasterMean_wrapper <- function(site_no, month, year, dataname='ppt') {
   
+  # during parallel operations, anything written to std_out is lost; write to 
+  # a logile instead so we have some idea of the progress being made
   write(file="logfile.txt", append=TRUE, x=paste(site_no, month, year,dataname))
   
   path <- paste(path_to_PRISM_data,'/',dataname,'/',sep="")
@@ -99,10 +102,10 @@ getRasterMean_wrapper <- function(site_no, month, year, dataname='ppt') {
 ```
 
 
-```{r}
+```{r, eval=FALSE}
 
-# set up 6 workers
-cl <- parallel::makeCluster(6)
+# set up 7 workers
+cl <- parallel::makeCluster(7)
 
 # must register parallel backend with the 'foreach' package
 doParallel::registerDoParallel(cl)
