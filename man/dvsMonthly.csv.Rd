@@ -3,15 +3,15 @@
 \docType{data}
 \name{dvsMonthly.csv}
 \alias{dvsMonthly.csv}
-\title{Monthly streamflow and baseflow summaries as calculated by Brian Breaker}
+\title{Monthly streamflow and baseflow summaries}
 \format{A CSV file containing 180989 observations of 5 variables}
 \usage{
 readr::read_csv("vignettes/dvsMonthly.csv")
 }
 \description{
-A dataset generated in Brian's original work, using USGS gage IDs pulled from a shapefile of
-gage drainage basins. The dataset contains almost 21,300 missing or negative flow values, which were
-removed in subsequent processing in the original scripts.
+This dataset contains monthly streamflow and baseflow summaries for a list of USGS gage IDs pulled
+from a shapefile of gage drainage basins. The dataset contains almost 21,300 missing or negative
+ flow values, which were removed in subsequent processing in the original scripts.
 }
 \details{
 This dataset also includes results for additional gage IDs that were removed in the original scripts

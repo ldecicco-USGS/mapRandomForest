@@ -83,6 +83,8 @@ getFlowDataForSite <- function(site, insideUSGSfirewall=FALSE) {
 
     monthlySummary$is_regulated <- FALSE
 
+    # if there are any rows of data, presume that they pertain to diversions or
+    # other flow regulation practices
     if ( nrow(pkFile) > 1) {
 
       startDate <- min(pkFile$peak_dt)
@@ -91,6 +93,7 @@ getFlowDataForSite <- function(site, insideUSGSfirewall=FALSE) {
       # don't run this if we have nonsensical start and end dates
       if ( endDate >= startDate ) {
 
+        # any record that falls with the probable date of flow regulation is marked as such
         monthlySummary$is_regulated<- ifelse(
             (lubridate::year(monthlySummary$YYYYMMDD) >= lubridate::year(startDate))
             & (lubridate::year(monthlySummary$YYYYMMDD) <= lubridate::year(endDate)),

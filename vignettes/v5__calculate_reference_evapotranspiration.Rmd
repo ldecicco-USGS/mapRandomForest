@@ -1,0 +1,49 @@
+---
+title: "5. Calculate reference ET0"
+author: "Steve Westenbroek"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+    number_sections: true
+vignette: >
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteIndexEntry{5. Calculate reference ET0}
+  \usepackage[utf8]{inputenc}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+### 1. Read in data from previous processing.
+
+```{r read_in_random_forest_training_data}
+
+library(readr)
+library(dplyr)
+library(lubridate)
+library(mapRandomForest)
+
+df <- readr::read_csv("random_forest_model_stream_and_temp_inputs.csv")
+
+```
+
+### 2. Calculate day of year and number of days in months (needed for Hargreaves calculation).
+
+```{r add_date_time_columns_for_Hargreaves_routine}
+
+
+df <- df %>% mutate(yyyymmdd=lubridate::ymd(paste(date,"15",sep="-"))) %>% mutate(year=lubridate::year(yyyymmdd)) %>%  mutate(days_in_month=lubridate::days_in_month(yyyymmdd)) %>% mutate(day_of_year=as.integer(yyyymmdd - lubridate::ymd(paste(year-1,"-12-31"))))
+
+```
+
+### 3. Calculate reference ET0 and write out random forest model inputs for use in subsequent vignette.
+
+```{r calculate_ET0}
+
+df <- df %>% mutate(Hargreaves_ET0=hargreavesET0(tmin, tmax, day_of_year, days_in_month, precip, lat))
+readr::write_csv(df,"random_forest_model_stream_temp_ET0_inputs.csv")
+
+```
