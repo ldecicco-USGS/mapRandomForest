@@ -44,7 +44,7 @@ cran_packages <- c("caret","dplyr","readr","ggplot2","magrittr","sf","lubridate"
 install.packages(cran_packages)
 
 # Install USGS packages from GRAN
-usgs_packages <- c("DVstats","dataRetrieval","smwrBase","smwrGraphs","smwrStats")
+usgs_packages <- c("dataRetrieval")
 install.packages(usgs_packages)
 
 # Install bioconductor packages
@@ -52,8 +52,8 @@ install.packages(usgs_packages)
 #BiocManager::install(bioc_packages)
 
 # Install github packages
-#github_packages <- c("joelnitta/minimal")
-#remotes::install_github(github_packages)
+github_packages <- c("wasquith-usgs/akqdecay")
+remotes::install_github(github_packages)
 
 ### Take snapshot ###
 

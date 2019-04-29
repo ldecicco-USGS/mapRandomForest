@@ -9,7 +9,7 @@ Authors@R: c(person("Steve", "Westenbroek", email = "smwesten@usgs.gov",
            person("Ben", "Dietsch", email = "bdietsch@usgs.gov",
                   role = c("ctb")))
 Description: mapRandomForest is an R package that contains modified versions of code
-    originally writted by Brian Breaker for use in estimating monthly baseflow and
+    originally written by Brian Breaker for use in estimating monthly baseflow and
     streamflow for gaged and ungaged basins within the Mississippi Alluvial Plain
     study area.
 License: CC0
@@ -18,12 +18,10 @@ LazyData: true
 RoxygenNote: 6.1.1
 Imports:
   lubridate,
-  rgdal,
-  rgeos,
-  raster,
+  readr,
   velox,
   magrittr,
-  sp,
+  sf,
   foreach,
   doParallel,
   smwrStats,
