@@ -35,7 +35,7 @@ library(magrittr)
 path_to_PRISM_data <- "g:\\PRISM_Monthly_4k"
 
 test_PRISM_file   <- paste(path_to_PRISM_data,"ppt","PRISM_ppt_stable_4kmM2_1896_bil.bil",sep="/")
-test_PRISM_raster <- raster::raster(test_PRISM_file)
+test_PRISM_raster <- velox::velox(test_PRISM_file)
 # maximum number of "clusters" to create for parallel processing; usually 5-10 on a laptop
 max_clusters      <- 10
 ```
@@ -66,7 +66,7 @@ shapefile_name <- system.file("extdata","sitesAll.shp", package = "mapRandomFore
 sites_sp       <- raster::shapefile(shapefile_name)
 
 # reproject gage site shapefile to align with the projection used with the PRISM data files
-sites_reprojected_sp <- sp::spTransform(sites_sp, CRSobj = test_PRISM_raster@crs)
+sites_reprojected_sp <- sp::spTransform(sites_sp, CRSobj = test_PRISM_raster$crs)
 
 ```
 

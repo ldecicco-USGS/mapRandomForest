@@ -21,9 +21,6 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r read_in_random_forest_training_data}
 
-library(readr)
-library(dplyr)
-library(lubridate)
 library(mapRandomForest)
 
 df <- readr::read_csv("random_forest_model_stream_and_temp_inputs.csv")
@@ -35,7 +32,10 @@ df <- readr::read_csv("random_forest_model_stream_and_temp_inputs.csv")
 ```{r add_date_time_columns_for_Hargreaves_routine}
 
 
-df <- df %>% mutate(yyyymmdd=lubridate::ymd(paste(date,"15",sep="-"))) %>% mutate(year=lubridate::year(yyyymmdd)) %>%  mutate(days_in_month=lubridate::days_in_month(yyyymmdd)) %>% mutate(day_of_year=as.integer(yyyymmdd - lubridate::ymd(paste(year-1,"-12-31"))))
+df <- df %>% dplyr::mutate(yyyymmdd=lubridate::ymd(paste(date,"15",sep="-"))) %>%
+               dplyr::mutate(year=lubridate::year(yyyymmdd)) %>%
+               dplyr::mutate(days_in_month=lubridate::days_in_month(yyyymmdd)) %>%
+               dplyr::mutate(day_of_year=as.integer(yyyymmdd - lubridate::ymd(paste(year-1,"-12-31"))))
 
 ```
 
@@ -43,7 +43,7 @@ df <- df %>% mutate(yyyymmdd=lubridate::ymd(paste(date,"15",sep="-"))) %>% mutat
 
 ```{r calculate_ET0}
 
-df <- df %>% mutate(Hargreaves_ET0=hargreavesET0(tmin, tmax, day_of_year, days_in_month, precip, lat))
+df <- df %>% dplyr::mutate(Hargreaves_ET0=hargreavesET0(tmin, tmax, day_of_year, days_in_month, precip, lat))
 readr::write_csv(df,"random_forest_model_stream_temp_ET0_inputs.csv")
 
 ```
