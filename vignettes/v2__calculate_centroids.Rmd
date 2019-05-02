@@ -1,15 +1,15 @@
 ---
 title: "Part 2: Calculate gaging basin centroids"
-author: "Steve Westenbroek"
 date: "`r Sys.Date()`"
 output:
-  rmarkdown::html_vignette:
+  rmarkdown::html_document:
     toc: true
+    toc_depth: 2
     number_sections: true
 vignette: >
-  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteIndexEntry{2. Calculate gaging basin centroids}
-  \usepackage[utf8]{inputenc}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
 ---
 
 ```{r setup, include = FALSE}
@@ -20,7 +20,7 @@ knitr::opts_chunk$set(
 ```
  that step.
 
-# Initialize environment and read/reproject shapefile
+# Initialize environment and read shapefile
 
 
 ```{r read_in_shapefile}
@@ -34,17 +34,19 @@ sites_sf       <- sf::read_sf(shapefile_name)
 
 # Calculate centroids of the drainage areas associated with the stream gages
 
+Latitude and longitude associated with the USGS gageing staion should be availavle from NWIS. We'll calculate the latitude and longitude of the centroid to use in the event that the NWIS values are missing.
+
 ```{r}
 # calculate centroid for projected dataset
 centroids_sf <- sf::st_centroid(sites_sf)
 
-# transform to unprojected crs
+# transform to unprojected (geographic) crs
 centroids_reprojected_sf <- sf::st_transform(centroids_sf, crs = geo_crs)
 
 # convert centroid matrix to dataframe; rename for clarity
 centroid_coordinates_df <- as.data.frame(cbind(centroids_reprojected_sf$site_no, sf::st_coordinates(centroids_reprojected_sf)))
 names(centroid_coordinates_df) <- c("site_no","lon","lat")
 
-readr::write_csv(centroid_coordinates_df,"centroid_coordinates.csv")
+readr::write_csv(centroid_coordinates_df,"centroid_coordinates.csv.gz")
 
 ```

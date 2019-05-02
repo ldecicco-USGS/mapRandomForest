@@ -1,15 +1,8 @@
-FROM rocker/tidyverse
+FROM rocker/geospatial:3.5.0
 LABEL maintainer="Steve Westenbroek <smwesten@usgs.gov>"
 
-RUN echo "options(repos = c(CRAN = 'https://cloud.r-project.org', USGS='https://owi.usgs.gov/R'))"  \
-    >> /usr/local/lib/R/etc/Rprofile.site
-
-RUN install2.r --error \
-  smwrBase             \
-  smwrStats            \
-  smwrGraphs           \
-  smwrQW               \
-  DVstats              \
-  dataRetrieval
-
-  RUN R -e 'devtools::install_github("USGS-R/mapRandomForest")'
+RUN R -e 'install.packages(c("smwrBase","smwrStats","smwrGraphs","smwrQW",  \
+           "DVstats","dataRetrieval"),                                       \
+         repos=c(CRAN = "https://cloud.r-project.org",                      \
+           USGS="https://owi.usgs.gov/R"))' &&                             \
+    R -e 'devtools::install_github("USGS-R/mapRandomForest")'

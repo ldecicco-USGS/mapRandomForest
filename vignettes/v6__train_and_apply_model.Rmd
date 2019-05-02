@@ -1,12 +1,13 @@
 ---
-title: "6. Training and applying the random forest model"
-author: "Steve Westenbroek"
+title: "6. Train and apply the random forest model"
 date: "`r Sys.Date()`"
-output: 
-  html_document:
-    highlight: pygments
+output:
+  rmarkdown::html_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
 vignette: >
-  %\VignetteIndexEntry{6. Training and applying the random forest model}
+  %\VignetteIndexEntry{6. Train and apply the random forest model}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -21,17 +22,20 @@ options(tibble.print_max = Inf)
 
 This example walks through a complete example, starting with reading and culling the training dataset, creating a random forest model, and ending with a comparison plot of observed and modeled river discharge.
 
-## Initialize R environment and read in training data
+# Initialize R environment and read in training data
 ```{r initialization}
 
-testFlowDat_file <- system.file("extdata","testFlowDat.csv", package = "mapRandomForest")
+#testFlowDat_file <- system.file("extdata","testFlowDat.csv.gz", package = "mapRandomForest")
+testFlowDat_file <- "testFlowDat.csv.gz"
 testFlowDat <- readr::read_csv(testFlowDat_file)
 
 ```
 
-## Munge training dataset
+# Munge original training dataset
 
-The first thing to do with the input data used to train the random forest model is to remove the same sites that Brian's original scripts omitted. `testFlowDat.csv` is the file created by the original scripts.
+The first thing to do with the input data used to train the random forest model is to remove the same sites that Brian's original scripts omitted. `testFlowDat.csv.gz` is the file created by the original scripts.
+
+## Remove hydrologically altered gage sites
 
 ```{r removeSites}
 removeSites <- c("03320500","03383000","03434500","03436100","03438000","03438220", 
@@ -53,7 +57,7 @@ baseFlowDat <- testFlowDat[,-c(3)]
 
 ```
 
-
+## Clean up original random forest input dataset
 
 ```{r}
 # begin data preparation code for total flow RF models
@@ -121,11 +125,24 @@ if ( length(nzv) > 0 ) {
 #plot(rfTune)
 
 ###  MY NOODLING AROUND WITH THE UNDERLYING FUNCTION
-myrf = randomForest::randomForest(x=full, y=fullY, ntree=10, mtry=15,do.trace=TRUE, keep.forest=TRUE)
-myrng = ranger::ranger(Flow~.,data=obsdf, num.trees=10,mtry=15,min.node.size=10,verbose=TRUE,importance='impurity')
+#myrf = randomForest::randomForest(x=full, y=fullY, ntree=10, mtry=15,do.trace=TRUE, keep.forest=TRUE)
+#myrng = ranger::ranger(Flow~.,data=obsdf, num.trees=10,mtry=15,min.node.size=10,verbose=TRUE,importance='impurity')
 
 #Run model
-rfModTrained <- randomForest::randomForest(full, fullY, ntree = 5, mtry = 15, do.trace=TRUE, keep.forest=TRUE)
+rfModTrained <- randomForest::randomForest(x=full,             # dataframe of predictor variables
+                                           y=fullY,            # response vector
+                                           ntree = 500,        # number of trees to grow
+                                           mtry = 15,          # number of variables to select at random at each split
+                                           do.trace=TRUE, 
+                                           keep.forest=TRUE)
+
+# ctrl <- caret::traincontrol(method = "oob",           # resampling method: 'Out Of Bag'
+#                             number = 10,              # number of k-folds or resampling iterations
+#                             allowParallel = TRUE,     # use parallel computation if available?
+#                             verboseIter = TRUE)       # print training log?
+# 
+# train(full, fullY, method = "parRF", na.action = na.omit, 
+#                  trControl = ctrl, tuneGrid = rfGrid, do.trace=TRUE))
 
 #Examine output
 rfModTrained
@@ -136,10 +153,11 @@ randomForest::varImpPlot(rfModTrained)
 
 ```{r, eval=FALSE}
 ######################################## combine and write data ######################################################
-ungagedDat_filename <- system.file("extdata","testUngagedDat.csv", package = "mapRandomForest")
-ungagedDat          <- readr::read_csv(ungagedDat_filename)
+ungagedDat_filename <- system.file("extdata","testUngagedDat.csv.gz", package = "mapRandomForest")
+ungagedDat          <- readr::read_csv(ungagedDat_filename) %>%
+                         plyr::select(1:20,37)
 
-ungagedDat <- ungagedDat[,c(1:20, 37)]
+#ungagedDat <- ungagedDat[,c(1:20, 37)]
 
 ungagedDat <- ungagedDat[complete.cases(ungagedDat),]
 
@@ -148,7 +166,7 @@ ungagedDat <- ungagedDat[complete.cases(ungagedDat),]
 #ungagedDat$Flow <- ungaged_predictions$predictions
 ungagedDat$Flow <- predict(rfModTrained, ungagedDat)
 
-gagedDat_filename <- system.file("extdata","testGagedDat.csv", package = "mapRandomForest")
+gagedDat_filename <- system.file("extdata","testGagedDat.csv.gz", package = "mapRandomForest")
 gagedDat          <- readr::read_csv(gagedDat_filename)
 
 gagedDat <- gagedDat[,c(1:20, 37)]
@@ -190,7 +208,7 @@ p <- ggplot2::ggplot() +
 
 print(p)
 
-# bigRiverDat <- readr::read_csv("F:/swMERAS/bigRivers/newBaseflow.csv")
+# bigRiverDat <- readr::read_csv("F:/swMERAS/bigRivers/newBaseflow.csv.gz")
 # 
 # bigRiverDat$comment <- "calculated"
 # 
@@ -200,7 +218,7 @@ print(p)
 # 
 # finalFlowDat <- dplyr::arrange(finalFlowDat, desc(siteNo), Date)
 # 
-# write.csv(finalFlowDat, "totalFlowDat.csv", row.names = FALSE)
+# write.csv.gz(finalFlowDat, "totalFlowDat.csv.gz", row.names = FALSE)
 # 
 # .ggplot(data = test, aes(x = Date, y = baseFlow, group = comment)) + 
 #   geom_line(aes(color = comment, linetype = comment)) + 

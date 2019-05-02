@@ -1,15 +1,15 @@
 ---
 title: "4. Join PRISM data to discharge data"
-author: "Steve Westenbroek"
 date: "`r Sys.Date()`"
 output:
-  rmarkdown::html_vignette:
+  rmarkdown::html_document:
     toc: true
+    toc_depth: 2
     number_sections: true
 vignette: >
-  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteIndexEntry{4. Join PRISM data to discharge data}
-  \usepackage[utf8]{inputenc}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
 ---
 
 ```{r setup, include = FALSE}
@@ -19,7 +19,7 @@ knitr::opts_chunk$set(
 )
 ```
 
-In this step the *.csv files generated in previous steps are left-joined to the monthly discharge values dataframe. Successive joins add precip, tmin, tmax, and tmean-related values and lagged values to the dataframe. Also, the centroid coordinate values calculated in an earlier step are joined to this dataframe.
+In this step the *.csv.gz files generated in previous steps are left-joined to the monthly discharge values dataframe. Successive joins add precip, tmin, tmax, and tmean-related values and lagged values to the dataframe. Also, the centroid coordinate values calculated in an earlier step are joined to this dataframe.
 
 # Read in monthly discharge file and create a suitable field for use in joining additional data fields.
 
@@ -27,8 +27,11 @@ In this step the *.csv files generated in previous steps are left-joined to the 
 # the 'magrittr' package provides the 'pipe' operator ('%>%') used throughout the vignettes
 library(magrittr)
 
-monthly_discharge_vignette <- readr::read_csv("monthly_discharge.csv")
-monthly_discharge_vignette$yyyymmdd <- lubridate::ymd(paste(monthly_discharge_vignette$date,"15",sep="-"))
+monthly_discharge_vignette <- readr::read_csv("monthly_discharge.csv.gz")
+
+# `date` is a character field; we need a full POSIX date here for subsequent steps
+# assume that the day equals the first of the month
+monthly_discharge_vignette$yyyymmdd <- lubridate::ymd(paste(monthly_discharge_vignette$date,"01",sep="-"))
 
 # clip off the more recent data to make comparisons to Brian's original data
 monthly_discharge_vignette           <- monthly_discharge_vignette %>%
@@ -41,15 +44,16 @@ monthly_discharge_vignette$joinfield <- with(monthly_discharge_vignette, paste(s
 
 ```{r}
 
-mean_ppt_values <- readr::read_csv("mean_ppt_values_w_lag.csv")
-mean_ppt_values$yyyymmdd <- lubridate::ymd(paste(mean_ppt_values$date,"15",sep="-"))
+mean_ppt_values <- readr::read_csv("mean_ppt_values_w_lag.csv.gz")
+mean_ppt_values$yyyymmdd <- lubridate::ymd(paste(mean_ppt_values$date,"01",sep="-"))
 
 # clip off the more recent data to make comparisons to Brian's original data
 mean_ppt_values           <- mean_ppt_values %>%
                                dplyr::filter(yyyymmdd < lubridate::ymd("2016-10-31")) 
 mean_ppt_values$joinfield <- with(mean_ppt_values, paste(site_no,date,sep="_"))
 
-mean_ppt_values <- dplyr::select(mean_ppt_values,"joinfield","precip","precip_lag_1m","precip_lag_2m","precip_sum_6m")
+# eliminate all other fields except those we wish to have in the final random forest input
+mean_ppt_values <- dplyr::select(mean_ppt_values,joinfield,precip,precip_lag_1m,precip_lag_2m,precip_sum_6m,group_id)
 
 ```
 
@@ -68,8 +72,8 @@ random_forest_training_df <- dplyr::left_join(x=monthly_discharge_vignette,
 
 ```{r}
 
-mean_tmin_values <- readr::read_csv("mean_tmin_values_w_lag.csv")
-mean_tmin_values$yyyymmdd <- lubridate::ymd(paste(mean_tmin_values$date,"15",sep="-"))
+mean_tmin_values <- readr::read_csv("mean_tmin_values_w_lag.csv.gz")
+mean_tmin_values$yyyymmdd <- lubridate::ymd(paste(mean_tmin_values$date,"01",sep="-"))
 
 # clip off the more recent data to make comparisons to Brian's original data
 mean_tmin_values           <- mean_tmin_values %>%
@@ -96,8 +100,8 @@ random_forest_training_df <- dplyr::left_join(x=random_forest_training_df,
 
 ```{r}
 
-mean_tmax_values <- readr::read_csv("mean_tmax_values_w_lag.csv")
-mean_tmax_values$yyyymmdd <- lubridate::ymd(paste(mean_tmax_values$date,"15",sep="-"))
+mean_tmax_values <- readr::read_csv("mean_tmax_values_w_lag.csv.gz")
+mean_tmax_values$yyyymmdd <- lubridate::ymd(paste(mean_tmax_values$date,"01",sep="-"))
 
 # clip off the more recent data to make comparisons to Brian's original data
 mean_tmax_values           <- mean_tmax_values %>%
@@ -123,8 +127,8 @@ random_forest_training_df <- dplyr::left_join(x=random_forest_training_df,
 
 ```{r}
 
-mean_tmean_values <- readr::read_csv("mean_tmean_values_w_lag.csv")
-mean_tmean_values$yyyymmdd <- lubridate::ymd(paste(mean_tmean_values$date,"15",sep="-"))
+mean_tmean_values <- readr::read_csv("mean_tmean_values_w_lag.csv.gz")
+mean_tmean_values$yyyymmdd <- lubridate::ymd(paste(mean_tmean_values$date,"01",sep="-"))
 
 # clip off the more recent data to make comparisons to Brian's original data
 mean_tmean_values           <- mean_tmean_values %>%
@@ -151,7 +155,7 @@ random_forest_training_df <- dplyr::left_join(x=random_forest_training_df,
 
 ```{r join_latitude_values_to_streamflow}
 
-centroid_coordinates_df <- readr::read_csv("centroid_coordinates.csv")
+centroid_coordinates_df <- readr::read_csv("centroid_coordinates.csv.gz")
 
 random_forest_training_df <- dplyr::left_join(x=random_forest_training_df,
                                               y=centroid_coordinates_df,
@@ -160,11 +164,11 @@ random_forest_training_df <- dplyr::left_join(x=random_forest_training_df,
 
 ```
 
-# Write out random forest model input file to a *.csv file for use in later vignettes.
+# Write out random forest model input file to a *.csv.gz file for use in later vignettes.
 
 ```{r write_output_to_csv}
 
-# filter out some rows with NA values
+# filter out rows with NA values
 random_forest_training_df <- random_forest_training_df %>% 
                                dplyr::filter( !is.na(tmean_lag_1m)) %>% 
                                dplyr::filter( !is.na(tmean)) %>% 
@@ -172,6 +176,6 @@ random_forest_training_df <- random_forest_training_df %>%
                                dplyr::filter( !is.na(precip_lag_2m)) %>% 
                                dplyr::filter(!is.na(precip_sum_6m))
 
-readr::write_csv(random_forest_training_df,"random_forest_model_stream_and_temp_inputs.csv")
+readr::write_csv(random_forest_training_df,"random_forest_model_stream_and_temp_inputs.csv.gz")
 
 ```

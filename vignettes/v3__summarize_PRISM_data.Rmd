@@ -2,13 +2,14 @@
 title: "Part 3: Summarize PRISM data"
 date: "`r Sys.Date()`"
 output:
-  rmarkdown::html_vignette:
+  rmarkdown::html_document:
     toc: true
+    toc_depth: 2
     number_sections: true
 vignette: >
-  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteIndexEntry{3. Summarize PRISM data}
-  \usepackage[utf8]{inputenc}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
 ---
 
 ```{r setup, include = FALSE}
@@ -18,13 +19,11 @@ knitr::opts_chunk$set(
 )
 ```
 
-This example shows how the functions modeled after Brian Breaker's scripts may be used to recreate the data files used in his random forest model for the Mississippi Alluvial Plain (MAP) project area. The model is referred to hereafter as the 'RFMAP' model.
-
-The code in this vignette assumes that an earlier vignette has been run and that the file `monthly_discharge.csv` has been generated in that step.
+In this vignette we process the PRISM climate data, calculating zonal statistics for precipitation and temperature values for each month for the drainage areas associated with the USGS gages. The code in this vignette assumes that an earlier vignette has been run and that the file `monthly_discharge.csv.gz` has been generated in that step.
 
 # Initialize environment and read/reproject shapefile
 
-It is more efficient to read and reproject the shapefile once; we'll read in the shapefile and an example raster containing PRISM data, then reproject the shapefile so that it is in the same projection as the rasters.
+We read in a single PRISM raster to extract its PROJ4 string; this is used to reproject the shapefile containing the drainage areas for the gage sites into the same coordinate reference system as the PRISM data.
 
 ```{r Generate_site_list}
 # the 'magrittr' package provides the 'pipe' operator ('%>%') used throughout the vignettes
@@ -36,6 +35,14 @@ path_to_PRISM_data <- "g:\\PRISM_Monthly_4k"
 
 test_PRISM_file   <- paste(path_to_PRISM_data,"ppt","PRISM_ppt_stable_4kmM2_1896_bil.bil",sep="/")
 test_PRISM_raster <- velox::velox(test_PRISM_file)
+
+# read in shapefile; sites are identified by the attribute 'site_no'
+shapefile_name <- system.file("extdata","sitesAll.shp", package = "mapRandomForest")
+sites_sp       <- raster::shapefile(shapefile_name)
+
+# reproject gage site shapefile to align with the projection used with the PRISM data files
+sites_reprojected_sp <- sp::spTransform(sites_sp, CRSobj = test_PRISM_raster$crs)
+
 # maximum number of "clusters" to create for parallel processing; usually 5-10 on a laptop
 max_clusters      <- 10
 ```
@@ -48,11 +55,11 @@ Read in previously calculated discharge data, making sure that we have a date we
 
 ```{r read in previously calculated values}
 # read in previously calculated monthly discharge values
-flow_data <- readr::read_csv('monthly_discharge.csv')
+flow_data <- readr::read_csv('monthly_discharge.csv.gz')
 
 # we currently have no PRISM data for 2018; must subset date values
 # set day to middle of month; parse as date; filter
-flow_data$yyyymmdd <- lubridate::ymd(paste(flow_data$date,"15",sep="-"))
+flow_data$yyyymmdd <- lubridate::ymd(paste(flow_data$date,"01",sep="-"))
 
 # eliminate data from 2018, mean values calculated from less than 25 values, or values
 # associated with regulated flow or significant flow diversions
@@ -61,17 +68,9 @@ flow_data <- flow_data %>%
                dplyr::filter(count_non_na > 24 ) %>%
                dplyr::filter(!is_regulated)
 
-# read in shapefile; sites are identified by the attribute 'site_no'
-shapefile_name <- system.file("extdata","sitesAll.shp", package = "mapRandomForest")
-sites_sp       <- raster::shapefile(shapefile_name)
-
-# reproject gage site shapefile to align with the projection used with the PRISM data files
-sites_reprojected_sp <- sp::spTransform(sites_sp, CRSobj = test_PRISM_raster$crs)
-
 ```
 
-
-Next, we create a wrapper function around the package function `getRasterMean`, in order to help in parallelizing the calculation.
+Next, we create a wrapper function around the package function `getRasterMean`, in order to help in parallelizing the calculation. The function accepts a value for `dataname`, which is a character representation of the label used to name the PRISM files ('ppt', 'tmin', 'tmax', or 'tmean'). The function sifts through the PRISM data directory, finds the full name of the file associated with the combination of month/year/dataname, and calculates zonal statistics for the drainage area associated with the supplied site number.
 
 ```{r}
 
@@ -106,8 +105,6 @@ getRasterMean_wrapper <- function(site_no, month, year, dataname='ppt') {
   return(as.numeric(value))
   
 }
-
-
 ```
 
 # Set up parallel computing environment
@@ -124,7 +121,6 @@ site_numbers <- unique(sites_reprojected_sp$site_no)
 # Summarize mean PRISM precipitation values
 
 ```{r summarize_precipitation, eval=FALSE}
-
 dataname <- "ppt"
 
 file.remove("logfile.txt")
@@ -132,7 +128,7 @@ file.remove("logfile.txt")
 mean_ppt_values <- foreach::foreach(b=site_numbers, .combine=rbind) %:%
 
   foreach::foreach(a=dplyr::filter(flow_data, site_no==b)$date,.combine=rbind,
-                                        .packages=c("sp","dplyr","raster","stringr",
+                                        .packages=c("magrittr","dplyr","raster","stringr",
                                           "data.table","lubridate","velox","mapRandomForest")) %dopar% {
     
     value <- getRasterMean_wrapper(site_no=b, 
@@ -142,7 +138,7 @@ mean_ppt_values <- foreach::foreach(b=site_numbers, .combine=rbind) %:%
 
     data.frame(site_no=b,date=a,value=value)
                                           }
-readr::write_csv(mean_ppt_values,"mean_ppt_values.csv")
+readr::write_csv(mean_ppt_values,"mean_ppt_values.csv.gz")
 ```
 
 # Summarize mean PRISM minimum air temperature values
@@ -153,7 +149,7 @@ dataname <- "tmin"
 mean_tmin_values <- foreach::foreach(b=site_numbers, .combine=rbind) %:%
 
   foreach::foreach(a=dplyr::filter(flow_data, site_no==b)$date,.combine=rbind,
-                                        .packages=c("sp","dplyr","raster","stringr",
+                                        .packages=c("magrittr","dplyr","raster","stringr",
                                           "data.table","lubridate","velox","mapRandomForest")) %dopar% {
     
     value <- getRasterMean_wrapper(site_no=b, 
@@ -163,7 +159,7 @@ mean_tmin_values <- foreach::foreach(b=site_numbers, .combine=rbind) %:%
 
     data.frame(site_no=b,date=a,value=value)
                                           }
-readr::write_csv(mean_tmin_values,"mean_tmin_values.csv")
+readr::write_csv(mean_tmin_values,"mean_tmin_values.csv.gz")
 ```
 
 # Summarize mean PRISM maximum air temperature values
@@ -174,7 +170,7 @@ dataname <- "tmax"
 mean_tmax_values <- foreach::foreach(b=site_numbers, .combine=rbind) %:%
 
   foreach::foreach(a=dplyr::filter(flow_data, site_no==b)$date,.combine=rbind,
-                                        .packages=c("sp","dplyr","raster","stringr",
+                                        .packages=c("magrittr","dplyr","raster","stringr",
                                           "data.table","lubridate","velox","mapRandomForest")) %dopar% {
     
     value <- getRasterMean_wrapper(site_no=b, 
@@ -185,7 +181,7 @@ mean_tmax_values <- foreach::foreach(b=site_numbers, .combine=rbind) %:%
     data.frame(site_no=b,date=a,value=value)
   }
 
-readr::write_csv(mean_tmax_values,"mean_tmax_values.csv")
+readr::write_csv(mean_tmax_values,"mean_tmax_values.csv.gz")
 ```
 
 
@@ -197,7 +193,7 @@ dataname <- "tmean"
 mean_tmean_values <- foreach::foreach(b=site_numbers, .combine=rbind) %:%
 
   foreach::foreach(a=dplyr::filter(flow_data, site_no==b)$date,.combine=rbind,
-                                        .packages=c("sp","dplyr","raster","stringr",
+                                        .packages=c("magrittr","dplyr","raster","stringr",
                                           "data.table","lubridate","velox","mapRandomForest")) %dopar% {
     
     value <- getRasterMean_wrapper(site_no=b, 
@@ -208,7 +204,7 @@ mean_tmean_values <- foreach::foreach(b=site_numbers, .combine=rbind) %:%
     data.frame(site_no=b,date=a,value=value)
   }
 
-readr::write_csv(mean_tmean_values,"mean_tmean_values.csv")
+readr::write_csv(mean_tmean_values,"mean_tmean_values.csv.gz")
 ```
 
 
@@ -216,129 +212,136 @@ readr::write_csv(mean_tmean_values,"mean_tmean_values.csv")
 parallel::stopCluster(cl)
 ```
 
+# Read in summarized values
+
+Because the preceding steps are compute-intensive, the results have been saved as a set of *.csv files. We now read those back in. In subsequent steps we will calculated lagged values. We need a way to identify blocks of continuous data associated with each USGS gage ID. At breaks in the dataset for each gage ID, the lag calculation must be reset. This is accomplished by assigning a `block_id` to each contiguous (in time) block of data; at a break in the date value, the `block_id` is imcremented by one.
+
+```{r, echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
+tabl <-"
+| site_no  | date    | precip | precip_lag_1m | precip_lag_2m |    block_id  |
+|----------|---------|--------|---------------|---------------|--------------|
+| 07024000 | 1940-01 |  155.  |     NA        |       NA      |       1      |
+| 07024000 | 1940-02 |  210.  |     155.      |       NA      |       1      |
+| 07024000 | 1940-03 |  305.  |     210.      |       155.    |       1      |
+| 07024000 | 1940-04 |  240.  |     305.      |       210.    |       1      |
+| 07024000 | *1940-08* |  430.  |     NA        |       NA      |       2      |
+| 07024000 | 1940-09 |  302.  |     430.      |       NA      |       2      |
+| 07024000 | 1940-10 |  275.  |     302.      |       430.    |       2      |
+| 07024000 | 1940-11 |  210.  |     275.      |       302.    |       2      |
+"
+cat(tabl)
+```
+
+
+  
 ```{r Read_in_csv_values}
 library(mapRandomForest)
 
-mean_tmin_values <- readr::read_csv("mean_tmin_values.csv") %>%
+mean_tmin_values <- readr::read_csv("mean_tmin_values.csv.gz") %>%
                            dplyr::group_by(site_no) %>%
                            dplyr::mutate(block_id=identify_contiguous(date)) %>%
                            dplyr::mutate(group_id=paste(site_no,block_id,sep="_"))
 
-mean_tmax_values <- readr::read_csv("mean_tmax_values.csv") %>%
+mean_tmax_values <- readr::read_csv("mean_tmax_values.csv.gz") %>%
                            dplyr::group_by(site_no) %>%
                            dplyr::mutate(block_id=identify_contiguous(date)) %>%
                            dplyr::mutate(group_id=paste(site_no,block_id,sep="_"))
 
-mean_tmean_values <- readr::read_csv("mean_tmean_values.csv") %>%
+mean_tmean_values <- readr::read_csv("mean_tmean_values.csv.gz") %>%
                            dplyr::group_by(site_no) %>%
                            dplyr::mutate(block_id=identify_contiguous(date)) %>%
                            dplyr::mutate(group_id=paste(site_no,block_id,sep="_"))
 
-mean_ppt_values <- readr::read_csv("mean_ppt_values.csv") %>% 
+mean_ppt_values <- readr::read_csv("mean_ppt_values.csv.gz") %>% 
                      dplyr::group_by(site_no) %>%
                      dplyr::mutate(block_id=identify_contiguous(date)) %>%
                      dplyr::mutate(group_id=paste(site_no,block_id,sep="_"))
-
-
 ```
 
 
 # Create lagged values for precipitation data
 
 ```{r create_lagged_values_for_precip}
-
 mean_ppt_values_lagged <- mean_ppt_values %>%
+                     dplyr::mutate(precip=value) %>%
+                     dplyr::select(-c(value)) %>%
                      dplyr::group_by(group_id) %>%
-                     dplyr::mutate(precip_lag_1m=lag(value,1)) %>%
-                     dplyr::mutate(precip_lag_2m=lag(value,2)) %>%
-                     dplyr::mutate(precip_lag_3m=lag(value,3)) %>%
-                     dplyr::mutate(precip_lag_4m=lag(value,4)) %>%
-                     dplyr::mutate(precip_lag_5m=lag(value,5)) %>%
-                     dplyr::mutate(precip_lag_6m=lag(value,6)) 
-
-mean_ppt_values_lagged$precip_sum_6m <- with(mean_ppt_values_lagged,
-                                             precip_lag_1m +
-                                             precip_lag_2m +
-                                             precip_lag_3m +
-                                             precip_lag_4m +
-                                             precip_lag_5m +
-                                             precip_lag_6m )
-
-mean_ppt_values_lagged$precip <- mean_ppt_values_lagged$value
-mean_ppt_values_lagged$value <- NULL
+                     dplyr::mutate(precip_lag_1m=dplyr::lag(precip,n=1)) %>%
+                     dplyr::mutate(precip_lag_2m=dplyr::lag(precip,n=2)) %>%
+                     dplyr::mutate(precip_lag_3m=dplyr::lag(precip,n=3)) %>%
+                     dplyr::mutate(precip_lag_4m=dplyr::lag(precip,n=4)) %>%
+                     dplyr::mutate(precip_lag_5m=dplyr::lag(precip,n=5)) %>%
+                     dplyr::mutate(precip_lag_6m=dplyr::lag(precip,n=6)) %>%
+                     dplyr::mutate(precip_sum_6m=precip_lag_1m +
+                                                 precip_lag_2m +
+                                                 precip_lag_3m +
+                                                 precip_lag_4m +
+                                                 precip_lag_5m +
+                                                 precip_lag_6m )
 
 mean_ppt_values_lagged <- mean_ppt_values_lagged %>%
                             dplyr::filter(!is.na(precip_sum_6m))
 
-readr::write_csv(mean_ppt_values_lagged, "mean_ppt_values_w_lag.csv")
-
+readr::write_csv(mean_ppt_values_lagged, "mean_ppt_values_w_lag.csv.gz")
 ```
 
 
-# Create lagged values for minimum air temperature data
+# Create lagged values for air temperature data
+
+The code to process air temperature data values performs the following steps:
+
+* create a named variable to hold specific data (e.g. `precip` rather than `value`)
+* eliminate the generic `value` field
+* group the table by `group_id`, a combinination of the USGS gage ID and the contiguous block ID
+* calculate the lagged values
+* eliminate rows with NA values in the calculated lag fields
+
+## Create lagged values for minimum air temperature data
 
 ```{r create_lagged_values_for_minimum_air_temperature}
-
 mean_tmin_values_lagged <- mean_tmin_values %>%
+                     dplyr::mutate(tmin=value) %>%
+                     dplyr::select(-c(value)) %>%
                      dplyr::group_by(group_id) %>%
-                     dplyr::mutate(tmin_lag_1m=lag(value,1)) %>%
-                     dplyr::filter(!is.na(tmin_lag_1m))
-
-
-mean_tmin_values_lagged <- mean_tmin_values_lagged %>%
-                     dplyr::group_by(group_id) %>%
-                     dplyr::mutate(tmin_lag_2m=lag(value,2)) %>%
+                     dplyr::mutate(tmin_lag_1m=dplyr::lag(tmin,n=1,default=NA)) %>%
+                     dplyr::mutate(tmin_lag_2m=dplyr::lag(tmin,n=2,default=NA)) %>%
+                     dplyr::ungroup() %>%
+                     dplyr::filter(!is.na(tmin_lag_1m)) %>%
                      dplyr::filter(!is.na(tmin_lag_2m))
 
-mean_tmin_values_lagged$tmin <- mean_tmin_values_lagged$value
-mean_tmin_values_lagged$value <- NULL
-
-readr::write_csv(mean_tmin_values_lagged, "mean_tmin_values_w_lag.csv")
-
+readr::write_csv(mean_tmin_values_lagged, "mean_tmin_values_w_lag.csv.gz")
 ```
 
-# Create lagged values for maximum air temperature data
+## Create lagged values for maximum air temperature data
 
 ```{r create_lagged_values_for_maximum_air_temperature}
-
 mean_tmax_values_lagged <- mean_tmax_values %>%
+                     dplyr::mutate(tmax=value) %>%
+                     dplyr::select(-c(value)) %>%
                      dplyr::group_by(group_id) %>%
-                     dplyr::mutate(tmax_lag_1m=lag(value,1)) %>%
-                     dplyr::filter(!is.na(tmax_lag_1m))
-
-
-mean_tmax_values_lagged <- mean_tmax_values_lagged %>%
-                     dplyr::group_by(group_id) %>%
-                     dplyr::mutate(tmax_lag_2m=lag(value,2)) %>%
+                     dplyr::mutate(tmax_lag_1m=dplyr::lag(tmax,n=1,default=NA)) %>%
+                     dplyr::mutate(tmax_lag_2m=dplyr::lag(tmax,n=2,default=NA)) %>%
+                     dplyr::ungroup() %>%
+                     dplyr::filter(!is.na(tmax_lag_1m)) %>%
                      dplyr::filter(!is.na(tmax_lag_2m))
 
-mean_tmax_values_lagged$tmax <- mean_tmax_values_lagged$value
-mean_tmax_values_lagged$value <- NULL
-
-readr::write_csv(mean_tmax_values_lagged, "mean_tmax_values_w_lag.csv")
-
+readr::write_csv(mean_tmax_values_lagged, "mean_tmax_values_w_lag.csv.gz")
 ```
 
-# Create lagged values for mean air temperature data
+## Create lagged values for mean air temperature data
 
 ```{r create_lagged_values_for_mean_air_temperature}
-
 mean_tmean_values_lagged <- mean_tmean_values %>%
+                     dplyr::mutate(tmean=value) %>%
+                     dplyr::select(-c(value)) %>%
                      dplyr::group_by(group_id) %>%
-                     dplyr::mutate(tmean_lag_1m=lag(value,1)) %>%
-                     dplyr::filter(!is.na(tmean_lag_1m))
-
-
-mean_tmean_values_lagged <- mean_tmean_values_lagged %>%
-                     dplyr::group_by(group_id) %>%
-                     dplyr::mutate(tmean_lag_2m=lag(value,2)) %>%
+                     dplyr::mutate(tmean_lag_1m=dplyr::lag(tmean,n=1,default=NA)) %>%
+                     dplyr::mutate(tmean_lag_2m=dplyr::lag(tmean,n=2,default=NA)) %>%
+                     dplyr::ungroup() %>%
+                     dplyr::filter(!is.na(tmean_lag_1m)) %>%
                      dplyr::filter(!is.na(tmean_lag_2m))
 
-mean_tmean_values_lagged$tmean <- mean_tmean_values_lagged$value
-mean_tmean_values_lagged$value <- NULL
-
-readr::write_csv(mean_tmean_values_lagged, "mean_tmean_values_w_lag.csv")
-
+readr::write_csv(mean_tmean_values_lagged, "mean_tmean_values_w_lag.csv.gz")
 ```
 
 
