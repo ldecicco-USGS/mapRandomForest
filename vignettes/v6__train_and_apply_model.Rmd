@@ -24,10 +24,10 @@ This example walks through a complete example, starting with reading and culling
 
 # Initialize R environment and read in training data
 ```{r initialization}
-
+library(magrittr)
 #testFlowDat_file <- system.file("extdata","testFlowDat.csv.gz", package = "mapRandomForest")
-testFlowDat_file <- "testFlowDat.csv.gz"
-testFlowDat <- readr::read_csv(testFlowDat_file)
+training_datafile <- "testFlowDat.csv.gz"
+training_data <- readr::read_csv(training_datafile)
 
 ```
 
@@ -43,190 +43,98 @@ removeSites <- c("03320500","03383000","03434500","03436100","03438000","0343822
                  "03436690","03436700","03584000","03584020","03588400","03588500", 
                  "03599450","03600500","03601630","03604000","03433641")
 
-testFlowDat <- dplyr::filter(testFlowDat, !siteNo %in% removeSites)
-testFlowDat <- dplyr::filter(testFlowDat, testFlowDat$Flow >= 0)
+# remove sites as listed above, eliminate records where flows are negative,
+# and remove records that are missing predictor variables
+training_data <- training_data %>% 
+                 dplyr::filter(!siteNo %in% removeSites) %>%
+                 dplyr::filter(Flow >= 0) %>%
+                 dplyr::filter(complete.cases(.))
 
-dates <- testFlowDat$Date
-
-# remove baseflow, all elevation data, all geographic region data
-totFlowDat <- testFlowDat[,-c(4, 23:38)]
-
-# remove total flow; other script also removes elevation and geographic region data
-baseFlowDat <- testFlowDat[,-c(3)]
-
-
+#compare_df <- dplyr::anti_join(x=totFlowDat,y=original_fm_brian,by=c("siteNo","Date"))
 ```
 
-## Clean up original random forest input dataset
 
-```{r}
-# begin data preparation code for total flow RF models
-original <- totFlowDat
+https://github.com/lgreski/datasciencectacontent/blob/master/markdown/pml-randomForestPerformance.md
 
-# get rid of rows with NA values
-original <- original[complete.cases(original),]
-
-# get site number and date data
-origInfo <- original[,c(1,2)]
-
-# remove vars that aren't predictors... other than flow
-# SMW: no, this removes only the site number and date from 'original' data frame
-full <- original[,-c(1:2)]
-full <- na.omit(full)
-
-obsdf <- full
-
-# create a character vector of sites
-siteList <- as.character(unique(origInfo$siteNo))
-
-# create a vector of flow data
-fullY <- full$Flow
-fullX <- full[ ,-1]
-# put predictor vars into a data frame
-predVars <- full[,-1]
-
-# get rid of full
-rm(full)
-
-# remove predictor vars that are constant or have near zero variance
-nzv <- caret::nearZeroVar(predVars)
-
-if ( length(nzv) > 0 ) {
-  full <- predVars[,-nzv]
-} else {
-  full <- predVars
-}  
-```
-
+> Once a person works through the varied sources of documentation on the machine learning models and
+> supporting R packages, the process for executing a random forest model (or any other model) in
+> caret::train() is relatively straightforward, and includes the following steps.
+>
+>    1. Configure parallel processing
+>    2. Configure trainControl object
+>    3. Develop training model
+>    4. De-register parallel processing cluster
 
 
 ```{r, eval=FALSE}
-################################## run full model using all sites ##################################################################
 
-#cl <- makePSOCKcluster(detectCores() - 3)
+# select 18 predictor variables from training data table; this step eliminates
+# all of the DEM elevation and geological setting data
+predictor_variables  <- as.data.frame(training_data %>%
+                          dplyr::select("precip":"preTot6","drain_area_va"))
 
-#clusterEvalQ(cl, library(foreach)); registerDoParallel(cl)
+cross_val_method <- "cv"     # resampling method: 'k-fold cross-validation'
+ml_method        <- "ranger" # machine learning technique; "ranger" is fast random forest implementation
+ntree            <- 99      # number of trees to grow during each training iteration
+n_kfolds         <- 5        # number of k-folds or resampling iterations
 
-# rfTune <- train(full, fullY, method = "parRF", na.action = na.omit, 
-#                 trControl = trainControl(method = "oob", number = 10, allowParallel = TRUE,
-#                                          verboseIter = TRUE), 
-#                 tuneGrid = rfGrid,
-#                 do.trace=TRUE)
+ranger_tunegrid  <- expand.grid(mtry=c(6,9,12,15,18),splitrule='variance',min.node.size=c(5,10,15,20,25))
 
-#rfTune <- train(x=as.data.frame(full), 
-#                y=fullY, 
-#                method = "ranger",
-#                trControl = trainControl(method = "oob", number = 10, allowParallel = TRUE,
-#                                         verboseIter = TRUE)
-#                )
+cl <- parallel::makePSOCKcluster(parallel::detectCores() - 6)
+parallel::clusterEvalQ(cl, library(foreach)); doParallel::registerDoParallel(cl)
 
-#stopCluster(cl)
+trCtrl <- caret::trainControl(method = cross_val_method, 
+                              number = n_kfolds,
+                              allowParallel = TRUE,     # use parallel computation if available?
+                              verboseIter = TRUE)       # print training log?
 
-#plot(rfTune)
+rf_model_total_flow <- caret::train(x=predictor_variables,
+                                    y=training_data$Flow,
+                                    method = ml_method,
+                                    trControl = trCtrl, 
+                                    tuneGrid=ranger_tunegrid,
+                                    importance='impurity',
+                                    verbose=TRUE,
+                                    num.trees=ntree)
 
-###  MY NOODLING AROUND WITH THE UNDERLYING FUNCTION
-#myrf = randomForest::randomForest(x=full, y=fullY, ntree=10, mtry=15,do.trace=TRUE, keep.forest=TRUE)
-#myrng = ranger::ranger(Flow~.,data=obsdf, num.trees=10,mtry=15,min.node.size=10,verbose=TRUE,importance='impurity')
+rf_model_baseflow <- caret::train(x=predictor_variables,
+                                  y=training_data$baseFlow,
+                                  method = ml_method,
+                                  trControl = trCtrl, 
+                                  tuneGrid=ranger_tunegrid,
+                                  importance='impurity',
+                                  verbose=TRUE,
+                                  num.trees=ntree)
 
-#Run model
-rfModTrained <- randomForest::randomForest(x=full,             # dataframe of predictor variables
-                                           y=fullY,            # response vector
-                                           ntree = 500,        # number of trees to grow
-                                           mtry = 15,          # number of variables to select at random at each split
-                                           do.trace=TRUE, 
-                                           keep.forest=TRUE)
-
-# ctrl <- caret::traincontrol(method = "oob",           # resampling method: 'Out Of Bag'
-#                             number = 10,              # number of k-folds or resampling iterations
-#                             allowParallel = TRUE,     # use parallel computation if available?
-#                             verboseIter = TRUE)       # print training log?
-# 
-# train(full, fullY, method = "parRF", na.action = na.omit, 
-#                  trControl = ctrl, tuneGrid = rfGrid, do.trace=TRUE))
+parallel::stopCluster(cl)
 
 #Examine output
-rfModTrained
-
-randomForest::varImpPlot(rfModTrained)
+caret::dotPlot(caret::varImp(rf_model_total_flow))
 ```
 
 
 ```{r, eval=FALSE}
-######################################## combine and write data ######################################################
-ungagedDat_filename <- system.file("extdata","testUngagedDat.csv.gz", package = "mapRandomForest")
-ungagedDat          <- readr::read_csv(ungagedDat_filename) %>%
-                         plyr::select(1:20,37)
+baseflow_used_in_sfr <- readr::read_csv("baseflow_data_used_in_first_round_of_SRF.csv.gz") %>% 
+                          dplyr::mutate(Date=as.Date(Date))
 
-#ungagedDat <- ungagedDat[,c(1:20, 37)]
 
-ungagedDat <- ungagedDat[complete.cases(ungagedDat),]
+```
 
-#ungagedDat$Flow <- predict(myrf, ungagedDat)
-#ungaged_predictions <- predict(myrng, data=ungagedDat)
-#ungagedDat$Flow <- ungaged_predictions$predictions
-ungagedDat$Flow <- predict(rfModTrained, ungagedDat)
 
-gagedDat_filename <- system.file("extdata","testGagedDat.csv.gz", package = "mapRandomForest")
-gagedDat          <- readr::read_csv(gagedDat_filename)
+```{r}
 
-gagedDat <- gagedDat[,c(1:20, 37)]
+comparison_df <- training_data %>% 
+                   dplyr::select(siteNo,Date,baseFlow) %>%
+                   dplyr::mutate(rfnew_flow=predict(rf_model_baseflow,predictor_variables)) %>%
+                   dplyr::rename(obs_baseflow=baseFlow) %>%
+                   dplyr::left_join(y=baseflow_used_in_sfr,by=c("siteNo","Date")) %>%
+                   dplyr::filter(comment != "calculated")
 
-gagedDat <- gagedDat[complete.cases(gagedDat),]
+df <- comparison_df
 
-#gagedDat$Flow <- predict(myrf, gagedDat)
-#gaged_predictions <- predict(myrng, data=gagedDat)
-#gagedDat$Flow <- gaged_predictions$predictions
-
-gagedDat$Flow <- predict(rfModTrained, gagedDat)
-
-flowDat <- testFlowDat[,c(1,2,3)]
-flowDat <- as.data.frame(dplyr::filter(flowDat, flowDat$Flow>=0))
-
-flowDat$comment <- "gaged"
-
-unFlowDat <- ungagedDat[,c(1,2,22)]
-
-unFlowDat$comment <- "estimated ungaged"
-
-colnames(unFlowDat)[2] <- "Date"
-
-extFlowDat <- gagedDat[,c(1,2,22)]
-
-extFlowDat$comment <- "estimated gaged"
-
-colnames(extFlowDat)[2] <- "Date"
-extFlowDat <- as.data.frame(dplyr::filter(extFlowDat, extFlowDat$Flow>=0))
-
-evalFlowDat <- dplyr::left_join(flowDat, extFlowDat, by = c("siteNo", "Date"))
-
-finalFlowDat <- dplyr::bind_rows(flowDat, extFlowDat, unFlowDat)
-
-p <- ggplot2::ggplot() +
-       ggplot2::geom_point(data = evalFlowDat, ggplot2::aes(x = Date, y = Flow.x, color = "gaged")) +
-       ggplot2::geom_point(data = evalFlowDat, ggplot2::aes(x = Date, y = Flow.y, color = "estimated gaged")) +
-       ggplot2::theme_bw()
-
-print(p)
-
-# bigRiverDat <- readr::read_csv("F:/swMERAS/bigRivers/newBaseflow.csv.gz")
-# 
-# bigRiverDat$comment <- "calculated"
-# 
-# bigRiverDat <- bigRiverDat[,c(1:3,5)]
-# 
-# finalFlowDat <- dplyr::bind_rows(finalFlowDat, bigRiverDat)
-# 
-# finalFlowDat <- dplyr::arrange(finalFlowDat, desc(siteNo), Date)
-# 
-# write.csv.gz(finalFlowDat, "totalFlowDat.csv.gz", row.names = FALSE)
-# 
-# .ggplot(data = test, aes(x = Date, y = baseFlow, group = comment)) + 
-#   geom_line(aes(color = comment, linetype = comment)) + 
-#   scale_y_log10(labels = comma, minor_breaks = c(0:9 %o% 10^(-1:4))[which(c(0:9 %o% 10^(-1:4)) != 0)]) + 
-#   labs(y = expression(paste("Monthly baseflow, ", " ", ft^3, "/s")), x = "Date") +
-#   annotation_logticks(sides = "rl") + 
-#   theme_USGSgrid()
-# 
-# dev.copy2pdf(file = "baseFlowTSeries.pdf", height = 8.5, width = 11)
+plot(df$obs_baseflow,df$rfnew_flow,ylim=c(0,120000),xlim=c(0,120000),
+                        ylab="Random Forest Estimate",xlab="Baseflow Separation (gage)")
+points(df$obs_baseflow,df$baseFlow,cex=0.8,col="red",new=FALSE)
+abline(a=0,b=1,col="blue")
 
 ```

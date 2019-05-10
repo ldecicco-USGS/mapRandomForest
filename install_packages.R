@@ -9,6 +9,13 @@
 CRAN <- "https://cloud.r-project.org"
 USGS <- "https://owi.usgs.gov/R"
 
+rprofile_path = file.path(Sys.getenv("HOME"), ".Rprofile")
+write('\noptions(repos=c(getOption(\'repos\'),
+    CRAN=\'https://cloud.r-project.org\',
+    USGS=\'https://owi.usgs.gov/R\'))\n',
+      rprofile_path,
+      append =  TRUE)
+
 # Install packrat
 install.packages("packrat", repos = CRAN)
 
@@ -44,7 +51,7 @@ cran_packages <- c("caret","dplyr","readr","ggplot2","magrittr","sf","lubridate"
 install.packages(cran_packages)
 
 # Install USGS packages from GRAN
-usgs_packages <- c("dataRetrieval")
+usgs_packages <- c("dataRetrieval","smwrBase","smwrData","smwrGraphs","smwrQW","DVstats")
 install.packages(usgs_packages)
 
 # Install bioconductor packages
