@@ -56,7 +56,7 @@ Read in previously calculated discharge data, making sure that we have a date we
 ```{r read in previously calculated values}
 flow_data_name <- system.file("data","monthly_discharge.rds", package = "mapRandomForest")
 # read in previously calculated monthly discharge values
-flow_data <- readr::read_csv(flow_data_name)
+flow_data <- readr::read_rds(flow_data_name)
 
 # we currently have no PRISM data for 2018; must subset date values
 # set day to middle of month; parse as date; filter

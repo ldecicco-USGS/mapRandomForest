@@ -1,4 +1,4 @@
-FROM rocker/geospatial:3.5.0
+FROM rocker/geospatial:3.5.3
 LABEL maintainer="Steve Westenbroek <smwesten@usgs.gov>"
 
 RUN R -e 'install.packages(c("smwrBase","smwrStats","smwrGraphs","smwrQW",  \
