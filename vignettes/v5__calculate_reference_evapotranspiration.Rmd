@@ -23,8 +23,9 @@ knitr::opts_chunk$set(echo = TRUE)
 
 library(mapRandomForest)
 library(magrittr)
+rf_model_inputs_filename <- system.file("data","random_forest_model_stream_and_temp_inputs.rds", package = "mapRandomForest")
 
-df <- readr::read_csv("random_forest_model_stream_and_temp_inputs.csv.gz")
+df <- readr::read_rds(rf_model_inputs_filename)
 
 ```
 
@@ -69,6 +70,6 @@ df <- df %>%
 
 ```{r}
 #  Write out random forest model inputs for use in subsequent vignette.
-readr::write_csv(df,"random_forest_model_stream_temp_ET0_inputs.csv.gz")
+readr::write_rds(df,"random_forest_model_stream_temp_ET0_inputs.rds", compress="gz")
 ```
 

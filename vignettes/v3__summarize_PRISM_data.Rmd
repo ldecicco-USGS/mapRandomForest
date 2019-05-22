@@ -37,7 +37,7 @@ test_PRISM_file   <- paste(path_to_PRISM_data,"ppt","PRISM_ppt_stable_4kmM2_1896
 test_PRISM_raster <- velox::velox(test_PRISM_file)
 
 # read in shapefile; sites are identified by the attribute 'site_no'
-shapefile_name <- system.file("extdata","sitesAll.shp", package = "mapRandomForest")
+shapefile_name <- system.file("data","sitesAll.shp", package = "mapRandomForest")
 sites_sp       <- raster::shapefile(shapefile_name)
 
 # reproject gage site shapefile to align with the projection used with the PRISM data files
@@ -54,8 +54,9 @@ Read in previously calculated discharge data, making sure that we have a date we
 * monthly values calculated for gages on streams subject to significant regulation
 
 ```{r read in previously calculated values}
+flow_data_name <- system.file("data","monthly_discharge.rds", package = "mapRandomForest")
 # read in previously calculated monthly discharge values
-flow_data <- readr::read_csv('monthly_discharge.csv.gz')
+flow_data <- readr::read_csv(flow_data_name)
 
 # we currently have no PRISM data for 2018; must subset date values
 # set day to middle of month; parse as date; filter
@@ -125,7 +126,7 @@ dataname <- "ppt"
 
 file.remove("logfile.txt")
 
-mean_ppt_values <- foreach::foreach(b=site_numbers, .combine=rbind) %:%
+mean_precip_values <- foreach::foreach(b=site_numbers, .combine=rbind) %:%
 
   foreach::foreach(a=dplyr::filter(flow_data, site_no==b)$date,.combine=rbind,
                                         .packages=c("magrittr","dplyr","raster","stringr",
@@ -138,7 +139,7 @@ mean_ppt_values <- foreach::foreach(b=site_numbers, .combine=rbind) %:%
 
     data.frame(site_no=b,date=a,value=value)
                                           }
-readr::write_csv(mean_ppt_values,"mean_ppt_values.csv.gz")
+readr::write_rds(mean_precip_values,"mean_precip_values.rds")
 ```
 
 # Summarize mean PRISM minimum air temperature values
@@ -159,7 +160,7 @@ mean_tmin_values <- foreach::foreach(b=site_numbers, .combine=rbind) %:%
 
     data.frame(site_no=b,date=a,value=value)
                                           }
-readr::write_csv(mean_tmin_values,"mean_tmin_values.csv.gz")
+readr::write_rds(mean_tmin_values,"mean_tmin_values.rds")
 ```
 
 # Summarize mean PRISM maximum air temperature values
@@ -181,7 +182,7 @@ mean_tmax_values <- foreach::foreach(b=site_numbers, .combine=rbind) %:%
     data.frame(site_no=b,date=a,value=value)
   }
 
-readr::write_csv(mean_tmax_values,"mean_tmax_values.csv.gz")
+readr::write_rds(mean_tmax_values,"mean_tmax_values.rds")
 ```
 
 
@@ -204,7 +205,7 @@ mean_tmean_values <- foreach::foreach(b=site_numbers, .combine=rbind) %:%
     data.frame(site_no=b,date=a,value=value)
   }
 
-readr::write_csv(mean_tmean_values,"mean_tmean_values.csv.gz")
+readr::write_rds(mean_tmean_values,"mean_tmean_values.rds")
 ```
 
 
@@ -214,7 +215,7 @@ parallel::stopCluster(cl)
 
 # Read in summarized values
 
-Because the preceding steps are compute-intensive, the results have been saved as a set of *.csv files. We now read those back in. In subsequent steps we will calculated lagged values. We need a way to identify blocks of continuous data associated with each USGS gage ID. At breaks in the dataset for each gage ID, the lag calculation must be reset. This is accomplished by assigning a `block_id` to each contiguous (in time) block of data; at a break in the date value, the `block_id` is imcremented by one.
+Because the preceding steps are compute-intensive, the results have been saved as a set of *.rds files. We now read those back in. In subsequent steps we will calculated lagged values. We need a way to identify blocks of continuous data associated with each USGS gage ID. At breaks in the dataset for each gage ID, the lag calculation must be reset. This is accomplished by assigning a `block_id` to each contiguous (in time) block of data; at a break in the date value, the `block_id` is imcremented by one.
 
 ```{r, echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
 tabl <-"
@@ -237,22 +238,24 @@ cat(tabl)
 ```{r Read_in_csv_values}
 library(mapRandomForest)
 
-mean_tmin_values <- readr::read_csv("mean_tmin_values.csv.gz") %>%
+tmin_values_filename <- system.file("data","mean_tmin_values.rds", package = "mapRandomForest")
+mean_tmin_values <- readr::read_rds(tmin_values_filename) %>%
                            dplyr::group_by(site_no) %>%
                            dplyr::mutate(block_id=identify_contiguous(date)) %>%
                            dplyr::mutate(group_id=paste(site_no,block_id,sep="_"))
 
-mean_tmax_values <- readr::read_csv("mean_tmax_values.csv.gz") %>%
+tmax_values_filename <- system.file("data","mean_tmin_values.rds", package = "mapRandomForest")
+mean_tmax_values <- readr::read_rds(tmax_values_filename) %>%
                            dplyr::group_by(site_no) %>%
                            dplyr::mutate(block_id=identify_contiguous(date)) %>%
                            dplyr::mutate(group_id=paste(site_no,block_id,sep="_"))
-
-mean_tmean_values <- readr::read_csv("mean_tmean_values.csv.gz") %>%
+tmean_values_filename <- system.file("data","mean_tmin_values.rds", package = "mapRandomForest")
+mean_tmean_values <- readr::read_rds(tmean_values_filename) %>%
                            dplyr::group_by(site_no) %>%
                            dplyr::mutate(block_id=identify_contiguous(date)) %>%
                            dplyr::mutate(group_id=paste(site_no,block_id,sep="_"))
-
-mean_ppt_values <- readr::read_csv("mean_ppt_values.csv.gz") %>% 
+precip_values_filename <- system.file("data","mean_precip_values.rds", package = "mapRandomForest")
+mean_precip_values <- readr::read_rds(precip_values_filename) %>% 
                      dplyr::group_by(site_no) %>%
                      dplyr::mutate(block_id=identify_contiguous(date)) %>%
                      dplyr::mutate(group_id=paste(site_no,block_id,sep="_"))
@@ -262,7 +265,7 @@ mean_ppt_values <- readr::read_csv("mean_ppt_values.csv.gz") %>%
 # Create lagged values for precipitation data
 
 ```{r create_lagged_values_for_precip}
-mean_ppt_values_lagged <- mean_ppt_values %>%
+mean_precip_values_lagged <- mean_precip_values %>%
                      dplyr::mutate(precip=value) %>%
                      dplyr::select(-c(value)) %>%
                      dplyr::group_by(group_id) %>%
@@ -279,10 +282,10 @@ mean_ppt_values_lagged <- mean_ppt_values %>%
                                                  precip_lag_5m +
                                                  precip_lag_6m )
 
-mean_ppt_values_lagged <- mean_ppt_values_lagged %>%
+mean_precip_values_lagged <- mean_precip_values_lagged %>%
                             dplyr::filter(!is.na(precip_sum_6m))
 
-readr::write_csv(mean_ppt_values_lagged, "mean_ppt_values_w_lag.csv.gz")
+readr::write_rds(mean_precip_values_lagged, "mean_precip_values_w_lag.rds", compress="gz")
 ```
 
 
@@ -309,7 +312,7 @@ mean_tmin_values_lagged <- mean_tmin_values %>%
                      dplyr::filter(!is.na(tmin_lag_1m)) %>%
                      dplyr::filter(!is.na(tmin_lag_2m))
 
-readr::write_csv(mean_tmin_values_lagged, "mean_tmin_values_w_lag.csv.gz")
+readr::write_rds(mean_tmin_values_lagged, "mean_tmin_values_w_lag.rds")
 ```
 
 ## Create lagged values for maximum air temperature data
@@ -325,7 +328,7 @@ mean_tmax_values_lagged <- mean_tmax_values %>%
                      dplyr::filter(!is.na(tmax_lag_1m)) %>%
                      dplyr::filter(!is.na(tmax_lag_2m))
 
-readr::write_csv(mean_tmax_values_lagged, "mean_tmax_values_w_lag.csv.gz")
+readr::write_rds(mean_tmax_values_lagged, "mean_tmax_values_w_lag.rds")
 ```
 
 ## Create lagged values for mean air temperature data
@@ -341,7 +344,7 @@ mean_tmean_values_lagged <- mean_tmean_values %>%
                      dplyr::filter(!is.na(tmean_lag_1m)) %>%
                      dplyr::filter(!is.na(tmean_lag_2m))
 
-readr::write_csv(mean_tmean_values_lagged, "mean_tmean_values_w_lag.csv.gz")
+readr::write_rds(mean_tmean_values_lagged, "mean_tmean_values_w_lag.rds")
 ```
 
 

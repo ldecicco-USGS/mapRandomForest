@@ -1,6 +1,15 @@
 ---
 title: "Can we regenerate earlier RF model input?"
-output: html_document
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
+vignette: >
+  %\VignetteIndexEntry{Can we regenerate earlier RF model input?}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
 ---
 
 ```{r setup, include=FALSE}
@@ -14,7 +23,9 @@ library(magrittr)
 
 
 ```{r}
-new_rf_inputs <- readr::read_csv("random_forest_model_stream_temp_ET0_inputs.csv.gz") %>%
+
+new_rf_inputs_file <- system.file("data","random_forest_model_stream_temp_ET0_inputs.rds", package = "mapRandomForest")
+new_rf_inputs <- readr::read_rds(new_rf_inputs_file) %>%
                    dplyr::mutate(date=yyyymmdd) %>%
                    dplyr::select(site_no:baseflow,
                                  precip:precip_sum_6m,
@@ -30,8 +41,9 @@ knitr::kable(new_rf_inputs_summary)
 
 ```
 ```{r}
-training_datafile <- "testFlowDat.csv.gz"
-original_rf_inputs <- readr::read_csv(training_datafile) %>%
+
+training_datafile <- system.file("data","testFlowDat.rds", package = "mapRandomForest")
+original_rf_inputs <- readr::read_rds(training_datafile) %>%
                         dplyr::select("siteNo":"preTot6","drain_area_va")
 
 ```

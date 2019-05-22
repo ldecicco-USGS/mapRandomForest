@@ -18,7 +18,7 @@ knitr::opts_chunk$set(
   comment = "#>"
 )
 ```
- that step.
+ 
 
 # Initialize environment and read shapefile
 
@@ -28,7 +28,7 @@ knitr::opts_chunk$set(
 geo_crs <- "+proj=longlat +datum=NAD83 +no_defs +ellps=GRS80 +towgs84=0,0,0"
 
 # read in shapefile; sites are identified by the attribute 'site_no'
-shapefile_name <- system.file("extdata","sitesAll.shp", package = "mapRandomForest")
+shapefile_name <- system.file("data","sitesAll.shp", package = "mapRandomForest")
 sites_sf       <- sf::read_sf(shapefile_name)
 ```
 
@@ -47,6 +47,8 @@ centroids_reprojected_sf <- sf::st_transform(centroids_sf, crs = geo_crs)
 centroid_coordinates_df <- as.data.frame(cbind(centroids_reprojected_sf$site_no, sf::st_coordinates(centroids_reprojected_sf)))
 names(centroid_coordinates_df) <- c("site_no","lon","lat")
 
-readr::write_csv(centroid_coordinates_df,"centroid_coordinates.csv.gz")
+# write out 
+#readr::write_rds(centroid_coordinates_df,"centroid_coordinates.rds", compress="gz")
 
+head(centroid_coordinates_df)
 ```

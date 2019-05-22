@@ -31,7 +31,7 @@ The list of stream gages used in RFMAP was created by importing a shapefile and 
 library(magrittr)
 
 # read in shapefile; sites are identified by the attribute 'site_no'
-shapefile_name <- system.file("extdata","sitesAll.shp", package = "mapRandomForest")
+shapefile_name <- system.file("data","sitesAll.shp", package = "mapRandomForest")
 sites_sf       <- sf::read_sf(shapefile_name)
 
 site_list <- unique(sites_sf$site_no)
@@ -113,7 +113,7 @@ monthly_discharge <- monthly_discharge %>%
                        dplyr::filter(discharge >= 0)
 
 # write results to a 'csv' file
-readr::write_csv(monthly_discharge, "monthly_discharge.csv.gz")
+readr::write_csv(monthly_discharge, "data/monthly_discharge.rds")
 
 parallel::stopCluster(cl)
                                      
@@ -124,8 +124,8 @@ parallel::stopCluster(cl)
 First read in the file created the earlier random forest work. In this work, scripts were used to eliminate sites for which significant surface water withdrawals or other flow regulation (dams) were judged to be significant; the discharge values from the affected sites are deleted and not included in subsequent analysis steps.
 
 ```{r, Compare_Breaker_Q}
-
-monthly_discharge_orig <- readr::read_csv("dvsMonthly.csv.gz")
+monthly_discharge_orig_name <- system.file("data","dvsMonthly.rds", package = "mapRandomForest")
+monthly_discharge_orig <- readr::read_rds(monthly_discharge_orig_name)
 monthly_discharge_orig <- monthly_discharge_orig %>% 
                             dplyr::filter(!is.na(Flow)) %>%
                             dplyr::filter(Flow >= 0 )
@@ -142,8 +142,8 @@ monthly_discharge_orig <- monthly_discharge_orig %>% dplyr::filter(!siteNo %in% 
 Now read in the monthly discharge data created as part of these vignettes.
 
 ```{r Clean_vignette_data, setfig.width=16}
-
-monthly_discharge_vignette <- readr::read_csv("monthly_discharge.csv.gz")
+monthly_discharge_name <- system.file("data","monthly_discharge.rds", package = "mapRandomForest")
+monthly_discharge_vignette <- readr::read_rds(monthly_discharge_name)
 monthly_discharge_vignette$yyyymmdd <- lubridate::ymd(paste(monthly_discharge_vignette$date,"01",sep="-"))
 
 # clip off the more recent data to make comparisons to Brian's original data
@@ -184,7 +184,7 @@ with(comparison_df, plot(x=discharge_orig, y=discharge))
 The logic encapsulated in these scripts and vignettes is able to generate a dataset generally comparable to the earlier work by Brian Breaker.
 
 
-The resulting file `monthly_discharge.csv` will be joined in later steps with other covariates (precipitation, air temperature, ET) to create the input dataset provided to the random forest algorithm.
+The resulting file `monthly_discharge.rds` will be joined in later steps with other covariates (precipitation, air temperature, ET) to create the input dataset provided to the random forest algorithm.
 
 ----------------------------------------------
 

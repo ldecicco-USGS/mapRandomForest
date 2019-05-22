@@ -25,9 +25,8 @@ This example walks through a complete example, starting with reading and culling
 # Initialize R environment and read in training data
 ```{r initialization}
 library(magrittr)
-#testFlowDat_file <- system.file("extdata","testFlowDat.csv.gz", package = "mapRandomForest")
-training_datafile <- "testFlowDat.csv.gz"
-training_data <- readr::read_csv(training_datafile)
+training_datafile <- system.file("data","testFlowDat.rds", package = "mapRandomForest")
+training_data <- readr::read_rds(training_datafile)
 
 ```
 
@@ -66,8 +65,7 @@ https://github.com/lgreski/datasciencectacontent/blob/master/markdown/pml-random
 >    4. De-register parallel processing cluster
 
 
-```{r, eval=FALSE}
-
+```{r, eval=TRUE}
 # select 18 predictor variables from training data table; this step eliminates
 # all of the DEM elevation and geological setting data
 predictor_variables  <- as.data.frame(training_data %>%
@@ -79,7 +77,11 @@ ntree            <- 99      # number of trees to grow during each training itera
 n_kfolds         <- 5        # number of k-folds or resampling iterations
 
 ranger_tunegrid  <- expand.grid(mtry=c(6,9,12,15,18),splitrule='variance',min.node.size=c(5,10,15,20,25))
+```
 
+Now tune a train the random forest models in parallel.
+
+```{r, eval=FALSE}
 cl <- parallel::makePSOCKcluster(parallel::detectCores() - 6)
 parallel::clusterEvalQ(cl, library(foreach)); doParallel::registerDoParallel(cl)
 
@@ -113,11 +115,16 @@ caret::dotPlot(caret::varImp(rf_model_total_flow))
 ```
 
 
-```{r, eval=FALSE}
-baseflow_used_in_sfr <- readr::read_csv("baseflow_data_used_in_first_round_of_SRF.csv.gz") %>% 
+```{r, eval=TRUE}
+baseflow_used_in_sfr_file <- system.file("data","baseflow_data_used_in_first_round_of_SRF.rds", package = "mapRandomForest")
+baseflow_used_in_sfr <- readr::read_rds(baseflow_used_in_sfr_file) %>% 
                           dplyr::mutate(Date=as.Date(Date))
 
+rf_model_baseflow_file <- system.file("data","rf_model_baseflow.rds", package = "mapRandomForest")
+rf_model_baseflow <- readr::read_rds(rf_model_baseflow_file)
 
+rf_model_total_flow_file <- system.file("data","rf_model_total_flow.rds", package = "mapRandomForest")
+rf_model_total_flow <- readr::read_rds(rf_model_total_flow_file)
 ```
 
 
