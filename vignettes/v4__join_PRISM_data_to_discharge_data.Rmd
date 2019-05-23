@@ -1,0 +1,177 @@
+---
+title: "4. Join PRISM data to discharge data"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
+vignette: >
+  %\VignetteIndexEntry{4. Join PRISM data to discharge data}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+In this step the *.csv.gz files generated in previous steps are left-joined to the monthly discharge values dataframe. Successive joins add precip, tmin, tmax, and tmean-related values and lagged values to the dataframe. Also, the centroid coordinate values calculated in an earlier step are joined to this dataframe.
+
+# Read in monthly discharge file and create a suitable field for use in joining additional data fields.
+
+```{r}
+# the 'magrittr' package provides the 'pipe' operator ('%>%') used throughout the vignettes
+library(magrittr)
+monthly_discharge_vignette_name <- system.file("data","monthly_discharge.rds", package = "mapRandomForest")
+monthly_discharge_vignette <- readr::read_rds(monthly_discharge_vignette_name)
+
+# `date` is a character field; we need a full POSIX date here for subsequent steps
+# assume that the day equals the first of the month
+monthly_discharge_vignette$yyyymmdd <- lubridate::ymd(paste(monthly_discharge_vignette$date,"01",sep="-"))
+
+# clip off the more recent data to make comparisons to Brian's original data
+monthly_discharge_vignette           <- monthly_discharge_vignette %>%
+                                          dplyr::filter(yyyymmdd < lubridate::ymd("2016-10-31"))
+```
+
+# Read in precipitation values and clean up precipitation dataframe.
+
+```{r}
+
+precip_values_filename <- system.file("data","mean_precip_values_w_lag.rds", package = "mapRandomForest")
+mean_precip_values <- readr::read_rds(precip_values_filename)
+mean_precip_values$yyyymmdd <- lubridate::ymd(paste(mean_precip_values$date,"01",sep="-"))
+
+# clip off the more recent data to make comparisons to Brian's original data
+mean_precip_values           <- mean_precip_values %>%
+                                dplyr::filter(yyyymmdd < lubridate::ymd("2016-10-31")) 
+#mean_precip_values$joinfield <- with(mean_precip_values, paste(site_no,date,sep="_"))
+
+# eliminate all other fields except those we wish to have in the final random forest input
+mean_precip_values <- dplyr::select(mean_precip_values, site_no, date,precip,precip_lag_1m,precip_lag_2m,precip_sum_6m,group_id)
+```
+
+# Join precip values to random forest input dataframe.
+
+```{r}
+
+
+random_forest_training_df <- dplyr::left_join(x=monthly_discharge_vignette,
+                                              y=mean_precip_values,
+                                              by=c("site_no","date"))
+
+```
+
+# Read in tmin values and clean up tmin dataframe.
+
+```{r}
+mean_tmin_values_filename <- system.file("data","mean_tmin_values_w_lag.rds", package = "mapRandomForest")
+mean_tmin_values <- readr::read_rds(mean_tmin_values_filename)
+mean_tmin_values$yyyymmdd <- lubridate::ymd(paste(mean_tmin_values$date,"01",sep="-"))
+
+# clip off the more recent data to make comparisons to Brian's original data
+mean_tmin_values           <- mean_tmin_values %>%
+                               dplyr::filter(yyyymmdd < lubridate::ymd("2016-10-31")) 
+
+# eliminate all other fields except those we wish to have in the final random forest input
+mean_tmin_values <- dplyr::select(mean_tmin_values, site_no, date, tmin, tmin_lag_1m, tmin_lag_2m)
+```
+
+# Join tmin values to random forest input dataframe.
+
+```{r}
+
+
+random_forest_training_df <- dplyr::left_join(x=random_forest_training_df,
+                                              y=mean_tmin_values,
+                                              by=c("site_no","date"))
+
+```
+
+# Read in tmax values and clean up tmax dataframe.
+
+```{r}
+
+mean_tmax_values_filename <- system.file("data","mean_tmax_values_w_lag.rds", package = "mapRandomForest")
+mean_tmax_values <- readr::read_rds(mean_tmax_values_filename)
+mean_tmax_values$yyyymmdd <- lubridate::ymd(paste(mean_tmax_values$date,"01",sep="-"))
+
+# clip off the more recent data to make comparisons to Brian's original data
+mean_tmax_values           <- mean_tmax_values %>%
+                               dplyr::filter(yyyymmdd < lubridate::ymd("2016-10-31")) 
+
+# eliminate all other fields except those we wish to have in the final random forest input
+mean_tmax_values <- dplyr::select(mean_tmax_values, site_no, date, tmax, tmax_lag_1m, tmax_lag_2m)
+```
+
+# Join tmax values to random forest input dataframe.
+
+```{r}
+
+
+random_forest_training_df <- dplyr::left_join(x=random_forest_training_df,
+                                              y=mean_tmax_values,
+                                              by=c("site_no","date"))
+```
+
+# Read in tmean values and clean up tmean dataframe.
+
+```{r}
+
+mean_tmean_values_filename <- system.file("data","mean_tmean_values_w_lag.rds", package = "mapRandomForest")
+mean_tmean_values <- readr::read_rds(mean_tmean_values_filename)
+mean_tmean_values$yyyymmdd <- lubridate::ymd(paste(mean_tmean_values$date,"01",sep="-"))
+
+# clip off the more recent data to make comparisons to Brian's original data
+mean_tmean_values           <- mean_tmean_values %>%
+                               dplyr::filter(yyyymmdd < lubridate::ymd("2016-10-31")) 
+
+# eliminate all other fields except those we wish to have in the final random forest input
+mean_tmean_values <- dplyr::select(mean_tmean_values,site_no, date, tmean, tmean_lag_1m, tmean_lag_2m)
+
+```
+
+# Join tmean values to random forest input dataframe.
+
+```{r}
+
+
+random_forest_training_df <- dplyr::left_join(x=random_forest_training_df,
+                                              y=mean_tmean_values,
+                                              by=c("site_no","date"))
+```
+
+
+# Join latitude values to random forest input dataframe.
+
+```{r join_latitude_values_to_streamflow}
+
+centroid_coordinates_filename <- system.file("data","centroid_coordinates.rds", package = "mapRandomForest")
+centroid_coordinates_df <- readr::read_rds(centroid_coordinates_filename)
+
+random_forest_training_df <- dplyr::left_join(x=random_forest_training_df,
+                                              y=centroid_coordinates_df,
+                                              by=c("site_no"="site_no"))
+
+
+```
+
+# Write out random forest model input file to a *.csv.gz file for use in later vignettes.
+
+```{r write_output_to_csv}
+
+# filter out rows with NA values
+random_forest_training_df <- random_forest_training_df %>% 
+                               dplyr::filter( !is.na(tmean_lag_1m)) %>% 
+                               dplyr::filter( !is.na(tmean)) %>% 
+                               dplyr::filter( !is.na(tmax_lag_2m)) %>% 
+                               dplyr::filter( !is.na(precip_lag_2m)) %>% 
+                               dplyr::filter(!is.na(precip_sum_6m))
+
+readr::write_rds(random_forest_training_df,"random_forest_model_stream_and_temp_inputs.rds", compress="gz")
+
+```

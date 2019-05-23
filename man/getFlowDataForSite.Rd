@@ -8,6 +8,9 @@ getFlowDataForSite(site, insideUSGSfirewall = FALSE)
 }
 \arguments{
 \item{site}{A character representation of a USGS gage ID}
+
+\item{insideUSGSfirewall}{A logical indicating whether the user is inside
+or outside of the USGS firewall}
 }
 \value{
 List containing 1) 'df': a dataframe listing the mean streamflow and baseflow where calculable for each month-year in the record, and 2) 'siteinfo': site information returned from the USGS NWIS system
@@ -17,6 +20,11 @@ This function retrieves site data for a USGS gaging station, pulls down all dail
 that exist in the record, and summarizes the mean daily flow by month. In addition, the function
 calls the 'part' routine coded as part of the USGS DVstats package to perform a baseflow separation
 on the daily values. Months for which all or part of the daily values are 'NA' (missing) are deleted.
+}
+\details{
+If the user is running this function from within the USGS firewall, setAccess('internal') is
+called in the initial dataRetrieval package setup. This *may* retrieve
+more site results than are publically available outside the USGS firewall.
 }
 \examples{
 mylist <- getFlowDataForSite("07063000")

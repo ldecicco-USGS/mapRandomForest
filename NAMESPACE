@@ -3,4 +3,5 @@
 export(getFlowDataForSite)
 export(getRasterMean)
 export(hargreavesET0)
+export(identify_contiguous)
 export(processPRISMRasters)

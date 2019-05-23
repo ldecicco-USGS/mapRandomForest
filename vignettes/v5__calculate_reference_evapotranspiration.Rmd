@@ -1,0 +1,75 @@
+---
+title: "5. Calculate reference ET0"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
+vignette: >
+  %\VignetteIndexEntry{5. Calculate reference ET0}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Read in data from previous processing.
+
+```{r read_in_random_forest_training_data}
+
+library(mapRandomForest)
+library(magrittr)
+rf_model_inputs_filename <- system.file("data","random_forest_model_stream_and_temp_inputs.rds", package = "mapRandomForest")
+
+df <- readr::read_rds(rf_model_inputs_filename)
+
+```
+
+# Calculate day of year and number of days in months (needed for Hargreaves calculation).
+
+The Hargreaves-Samani equation uses astronomic algorithms to estimate the extraterrestrial radiation on the basis of the latitude of the location and the day of the year. Here we make some calculations to add necessary data fields by extracting or calculating the following:
+
+* POSIX date (needed to calculate day of year)
+* year
+* number of days in the month
+* day of the year (assuming 15th of the month)
+
+```{r add_date_time_columns_for_Hargreaves_routine}
+df <- df %>% dplyr::mutate(yyyymmdd=lubridate::ymd(paste(date,"01",sep="-"))) %>%
+               dplyr::mutate(year=lubridate::year(yyyymmdd)) %>%
+               dplyr::mutate(days_in_month=lubridate::days_in_month(yyyymmdd)) %>%
+               dplyr::mutate(day_of_year=as.integer(yyyymmdd - lubridate::ymd(paste(year-1,"-12-31"))))
+
+```
+
+# Calculate reference ET0.
+
+```{r calculate_ET0}
+
+df <- df %>% dplyr::mutate(Hargreaves_ET0=hargreavesET0(tmin, tmax, day_of_year, days_in_month, precip, lat))
+```
+
+
+# Create lagged values for mean air temperature data
+
+```{r create_lagged_values_for_mean_air_temperature}
+df <- df %>%
+        dplyr::group_by(group_id) %>%
+        dplyr::mutate(ET0_lag_1m=dplyr::lag(Hargreaves_ET0,n=1,default=NA)) %>%
+        dplyr::mutate(ET0_lag_2m=dplyr::lag(Hargreaves_ET0,n=2,default=NA)) %>%
+        dplyr::ungroup() %>%
+        dplyr::filter(!is.na(ET0_lag_1m)) %>%
+        dplyr::filter(!is.na(ET0_lag_2m))
+```
+
+# Write results to a csv file for subsequent processing
+
+```{r}
+#  Write out random forest model inputs for use in subsequent vignette.
+readr::write_rds(df,"random_forest_model_stream_temp_ET0_inputs.rds", compress="gz")
+```
+

@@ -13,9 +13,6 @@ processPRISMRasters(shp, rasterDir, dateSeq)
 
 \item{dateSeq}{A list of POSIX date objects defining the YYYY-MM}
 }
-\value{
-data.frame
-}
 \description{
 Calculate monthly mean raster values for a set of polygons
 }

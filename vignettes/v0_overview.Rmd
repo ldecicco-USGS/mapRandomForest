@@ -1,0 +1,33 @@
+---
+title: "Statistical Models of Surface Water for the Mississippi Embayment"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Statistical Models of Surface Water for the Mississippi Embayment}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Statistical Models of Surface Water for the Mississippi Embayment Study Area
+
+Daily streamflow data was compiled from NWIS for streamflow-gaging stations within and adjacent to the MAP model boundary. Baseflow separation was performed on all daily streamflow values using the `PART` baseflow separation technique (Rutledge, 1998). Daily mean streamflow and baseflow time-series were aggregated to monthly time-series. Shapefiles were generated for all of the basins for the streamflow-gaging stations for which the monthly time-series were generated. Shapefiles were also generated for 160 ungaged basins at the MERAS boundary. 
+
+Monthly time series of total precipitation, maximum temperature, and minimum temperature were obtained for the basins (gaged and ungaged) from 1895 – 2015 using gridded climate data from PRISM. Monthly time-series of evapotranspiration were generated using the Hargreaves equation from the climate data for the basins (gaged and ungaged) using the latitude of the basin centroid. The National Elevation Dataset (NED) was used to extract elevation information for the basins (gaged and ungaged) and variables for geology were computed for the basins using the Generalized Geologic Map of the United States from Reed and Bush (2005). Climatic data were offset by one month and two months for each monthly mean streamflow and baseflow calculated at gaged locations.
+
+The previous 6 months total precipitation was also calculated for each month a mean streamflow and baseflow value were calculated for gaged basins. The time-series of monthly mean streamflow and climate data were then combined with the drainage area, elevation data, and geologic data combined with the drainage area, elevation data, and geologic data for the gaged locations. Data were generated for the ungaged locations in the same manner as the gaged locations without streamflow data. The time-series of monthly mean streamflow and climate data, drainage area, elevation data, and geologic data were used to develop random forest (RF) models. 
+
+The original RF models were trained using leave-one-out-validation with the caret package and the foreach package with the doParallel package in R. RF models were created in the same manner for monthly time-series of baseflow. Other statistical methods were tested (including ordinary least squares, generalized additive models, Support Vector Machine, and Cubist), but RF proved to provide the best results based on evaluation of root-mean-square error, Nash-Sutcliffe efficiency, adjusted R2, and percent bias. The models developed for monthly mean streamflow and baseflow were used to estimate time-series at ungaged locations at the MAP model boundary and to extend the record of monthly mean streamflow and baseflow for gaged locations within the MAP model area. For large rivers (Mississippi River and Arkansas River) and for regulated streams (White River, Ouachita River, and etc), baseflows were calculated using the available record of daily streamflow data and mean streamflow and baseflow were aggregated to monthly time-series. 
+
+For the Mississippi River, inflow to the MAP model area can be calculated by combining the monthly time-series from Mississippi River at Thebes (USGS 07022000) and sites on the Ohio River which are included in the data set and outflow can be calculated from the monthly time-series for the Mississippi River at Tarbert Landing (USGS 07295100). Streams within the MAP model area that are regulated were not included in model estimations for any period after regulation (dam installation and etc) was implemented.
+
+------------------------------------------------------------------
+
+# References
+
+Rutledge, A.T., 1998, Computer programs for describing the recession of ground-water discharge and for estimating mean ground-water recharge and discharge from streamflow records-update: U.S. Geological Survey Water-Resources Investigations Report 98–4148, 52 p., accessed April 26, 2019, at https://pubs.er.usgs.gov/publication/wri984148.
+
+

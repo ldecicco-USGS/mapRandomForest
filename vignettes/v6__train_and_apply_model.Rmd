@@ -1,0 +1,147 @@
+---
+title: "6. Train and apply the random forest model"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
+vignette: >
+  %\VignetteIndexEntry{6. Train and apply the random forest model}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+options(tibble.print_max = Inf)
+```
+
+This example walks through a complete example, starting with reading and culling the training dataset, creating a random forest model, and ending with a comparison plot of observed and modeled river discharge.
+
+# Initialize R environment and read in training data
+```{r initialization}
+library(magrittr)
+training_datafile <- system.file("data","testFlowDat.rds", package = "mapRandomForest")
+training_data <- readr::read_rds(training_datafile)
+
+```
+
+# Munge original training dataset
+
+The first thing to do with the input data used to train the random forest model is to remove the same sites that Brian's original scripts omitted. `testFlowDat.csv.gz` is the file created by the original scripts.
+
+## Remove hydrologically altered gage sites
+
+```{r removeSites}
+removeSites <- c("03320500","03383000","03434500","03436100","03438000","03438220", 
+                 "03588000","03601990","03602500","03603000","03604400","03605555", 
+                 "03436690","03436700","03584000","03584020","03588400","03588500", 
+                 "03599450","03600500","03601630","03604000","03433641")
+
+# remove sites as listed above, eliminate records where flows are negative,
+# and remove records that are missing predictor variables
+training_data <- training_data %>% 
+                 dplyr::filter(!siteNo %in% removeSites) %>%
+                 dplyr::filter(Flow >= 0) %>%
+                 dplyr::filter(complete.cases(.))
+
+#compare_df <- dplyr::anti_join(x=totFlowDat,y=original_fm_brian,by=c("siteNo","Date"))
+```
+
+
+https://github.com/lgreski/datasciencectacontent/blob/master/markdown/pml-randomForestPerformance.md
+
+> Once a person works through the varied sources of documentation on the machine learning models and
+> supporting R packages, the process for executing a random forest model (or any other model) in
+> caret::train() is relatively straightforward, and includes the following steps.
+>
+>    1. Configure parallel processing
+>    2. Configure trainControl object
+>    3. Develop training model
+>    4. De-register parallel processing cluster
+
+
+```{r, eval=TRUE}
+# select 18 predictor variables from training data table; this step eliminates
+# all of the DEM elevation and geological setting data
+predictor_variables  <- as.data.frame(training_data %>%
+                          dplyr::select("precip":"preTot6","drain_area_va"))
+
+cross_val_method <- "cv"     # resampling method: 'k-fold cross-validation'
+ml_method        <- "ranger" # machine learning technique; "ranger" is fast random forest implementation
+ntree            <- 99      # number of trees to grow during each training iteration
+n_kfolds         <- 5        # number of k-folds or resampling iterations
+
+ranger_tunegrid  <- expand.grid(mtry=c(6,9,12,15,18),splitrule='variance',min.node.size=c(5,10,15,20,25))
+```
+
+Now tune a train the random forest models in parallel.
+
+```{r, eval=FALSE}
+cl <- parallel::makePSOCKcluster(parallel::detectCores() - 6)
+parallel::clusterEvalQ(cl, library(foreach)); doParallel::registerDoParallel(cl)
+
+trCtrl <- caret::trainControl(method = cross_val_method, 
+                              number = n_kfolds,
+                              allowParallel = TRUE,     # use parallel computation if available?
+                              verboseIter = TRUE)       # print training log?
+
+rf_model_total_flow <- caret::train(x=predictor_variables,
+                                    y=training_data$Flow,
+                                    method = ml_method,
+                                    trControl = trCtrl, 
+                                    tuneGrid=ranger_tunegrid,
+                                    importance='impurity',
+                                    verbose=TRUE,
+                                    num.trees=ntree)
+
+rf_model_baseflow <- caret::train(x=predictor_variables,
+                                  y=training_data$baseFlow,
+                                  method = ml_method,
+                                  trControl = trCtrl, 
+                                  tuneGrid=ranger_tunegrid,
+                                  importance='impurity',
+                                  verbose=TRUE,
+                                  num.trees=ntree)
+
+parallel::stopCluster(cl)
+
+#Examine output
+caret::dotPlot(caret::varImp(rf_model_total_flow))
+```
+
+
+```{r, eval=TRUE}
+baseflow_used_in_sfr_file <- system.file("data","baseflow_data_used_in_first_round_of_SFR.rds", package = "mapRandomForest")
+baseflow_used_in_sfr <- readr::read_rds(baseflow_used_in_sfr_file) %>% 
+                          dplyr::mutate(Date=as.Date(Date))
+
+rf_model_baseflow_file <- system.file("data","rf_model_baseflow.rds", package = "mapRandomForest")
+rf_model_baseflow <- readr::read_rds(rf_model_baseflow_file)
+
+rf_model_total_flow_file <- system.file("data","rf_model_total_flow.rds", package = "mapRandomForest")
+rf_model_total_flow <- readr::read_rds(rf_model_total_flow_file)
+```
+
+
+```{r}
+
+comparison_df <- training_data %>% 
+                   dplyr::select(siteNo,Date,baseFlow) %>%
+                   dplyr::mutate(rfnew_flow=predict(rf_model_baseflow,predictor_variables)) %>%
+                   dplyr::rename(obs_baseflow=baseFlow) %>%
+                   dplyr::left_join(y=baseflow_used_in_sfr,by=c("siteNo","Date")) %>%
+                   dplyr::filter(comment != "calculated")
+
+df <- comparison_df
+
+plot(df$obs_baseflow,df$rfnew_flow,ylim=c(0,120000),xlim=c(0,120000),
+                        ylab="Random Forest Estimate",xlab="Baseflow Separation (gage)")
+points(df$obs_baseflow,df$baseFlow,cex=0.8,col="red",new=FALSE)
+abline(a=0,b=1,col="blue")
+
+```

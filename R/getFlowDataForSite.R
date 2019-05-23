@@ -5,7 +5,14 @@
 #' calls the 'part' routine coded as part of the USGS DVstats package to perform a baseflow separation
 #' on the daily values. Months for which all or part of the daily values are 'NA' (missing) are deleted.
 #'
+#' If the user is running this function from within the USGS firewall, setAccess('internal') is
+#' called in the initial dataRetrieval package setup. This *may* retrieve
+#' more site results than are publically available outside the USGS firewall.
+#'
 #' @param site A character representation of a USGS gage ID
+#' @param insideUSGSfirewall A logical indicating whether the user is inside
+#' or outside of the USGS firewall
+
 #'
 #' @return List containing 1) 'df': a dataframe listing the mean streamflow and baseflow where calculable for each month-year in the record, and 2) 'siteinfo': site information returned from the USGS NWIS system
 #' @export
@@ -19,7 +26,7 @@ getFlowDataForSite <- function(site, insideUSGSfirewall=FALSE) {
   # apparently some sites are set to allow access from within USGS firewall ONLY
   # if we're inside the firewall, set this to TRUE in order to gain access to some
   # of these sites. note that these sites contain *APPROVED* data, so it is
-  # unclear why public access is disabled.s
+  # unclear why public access is disabled.
   if (insideUSGSfirewall) {
     dataRetrieval::setAccess('internal')
   }
@@ -83,6 +90,8 @@ getFlowDataForSite <- function(site, insideUSGSfirewall=FALSE) {
 
     monthlySummary$is_regulated <- FALSE
 
+    # if there are any rows of data, presume that they pertain to diversions or
+    # other flow regulation practices
     if ( nrow(pkFile) > 1) {
 
       startDate <- min(pkFile$peak_dt)
@@ -91,6 +100,7 @@ getFlowDataForSite <- function(site, insideUSGSfirewall=FALSE) {
       # don't run this if we have nonsensical start and end dates
       if ( endDate >= startDate ) {
 
+        # any record that falls with the probable date of flow regulation is marked as such
         monthlySummary$is_regulated<- ifelse(
             (lubridate::year(monthlySummary$YYYYMMDD) >= lubridate::year(startDate))
             & (lubridate::year(monthlySummary$YYYYMMDD) <= lubridate::year(endDate)),

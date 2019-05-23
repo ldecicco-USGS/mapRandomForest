@@ -1,0 +1,195 @@
+---
+title: "Part 1: Obtain streamflow data"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
+vignette: >
+  %\VignetteIndexEntry{1. Obtain streamflow data}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+options(tibble.print_max = Inf)
+```
+
+This example shows how the functions modeled after Brian Breaker's scripts may be used to recreate the data files used in his random forest model for the Mississippi Alluvial Plain (MAP) project area. The model is referred to hereafter as the 'RFMAP' model.
+
+# Create a list of stream gages
+
+The list of stream gages used in RFMAP was created by importing a shapefile and extracting the unique site numbers (gage IDs) from the file. The shapefile is derived from the USGS GAGES-II data product (Falcone, 2011), and contains polygons defining the drainage basins for each of the USGS gages used to train the RFMAP. The attribute table simply contains the USGS site number and the drainage basin size in square miles.
+
+```{r Generate_site_list, warning=FALSE, message=FALSE}
+# the 'magrittr' package provides the 'pipe' operator ('%>%') used throughout the vignettes
+library(magrittr)
+
+# read in shapefile; sites are identified by the attribute 'site_no'
+shapefile_name <- system.file("data","sitesAll.shp", package = "mapRandomForest")
+sites_sf       <- sf::read_sf(shapefile_name)
+
+site_list <- unique(sites_sf$site_no)
+
+# maximum number of R instances to be fired up in the parallel code sections
+max_clusters <- 10
+```
+
+# Map and list of the sites used in the random forest modeling
+
+```{r, fig.width=10}
+
+ggplot2::ggplot(sites_sf, ggplot2::aes(fill=site_no))+ ggplot2::geom_sf() + ggplot2::theme(legend.position = "none")
+
+```
+
+
+List the sites for which we will obtain streamflow data
+
+```{r, echo=FALSE}
+site_list
+```
+
+# Pull USGS gage data for the entire list of sites, summarizing by month
+
+The process of obtaining and summarizing USGS gage data for RFMAP can be broken into the following steps:
+
+1) Use the package 'dataRetrieval' to obtain site information and daily discharge data for the period of record
+2) Temporarily fill in missing values with the number 1; this is to force the baseflow separation routine called in the next step to calculate values even if periods of missing values exist
+3) Use the 'part' routine from package 'DVstats' to compute a baseflow separation on the daily discharge values
+4) Filter (delete) all records which originally contained missing values
+5) Compute the mean discharge by month for the months that have enough data to be processed
+6) Pull USGS peak flow file data for gage; delete months that fall within range of 
+   dates marked as "regulated" or subect to "diversions" (peak flow 'peak_cd' 5, 6, or C)
+
+The 6 steps listed above are encapsulated in the function `getFlowDataForSite`.
+
+The following code will fire up local workers and download all discharge data for the sites contained in the `sitesAll.shp` shapefile, summarized by month. This code snippet ran in about 5 minutes on a 2012 MacBook Pro, using 5 cores.
+
+```{r Parallel_pull_USGS_data, eval=FALSE}
+site_numbers <- unique(sites_sp$site_no)
+
+# set up `max_clusters` workers
+cl <- parallel::makeCluster(max_clusters)
+
+# must register parallel backend with the 'foreach' package
+doParallel::registerDoParallel(cl)
+
+
+# the foreach function must be supplied with the names of package dependencies to be supplied to
+# each of the parallel image environments in which `getFlowDataForSite` is evaluated; evaluation
+# of this function is carried out in parallel for each unique site number
+monthly_discharge <- foreach::foreach(b=site_numbers, 
+                                      .combine=rbind,
+                                      .packages=c("magrittr","dplyr","dataRetrieval","stringr",
+                                        "data.table","lubridate","DVstats","mapRandomForest"),
+                                      .errorhandling='remove') %dopar% {
+  
+  print(b)                                          
+  data_list <- mapRandomForest::getFlowDataForSite(b, insideUSGSfirewall=TRUE)
+  data.table(site_no=rep(b,nrow(data_list$df)), 
+             date=data_list$df$date,
+             discharge=data_list$df$discharge,
+             baseflow=data_list$df$baseflow,
+             count_non_na=data_list$df$count_non_na,
+             is_regulated=data_list$df$is_regulated,
+             dec_lat=rep(data_list$siteinfo$dec_lat_va,nrow(data_list$df)),
+             dec_lon=rep(data_list$siteinfo$dec_long_va,nrow(data_list$df)),
+             area=rep(data_list$siteinfo$drain_area_va,nrow(data_list$df))hist)
+  
+  # output from the run for each unique site number is concatenated (rbind), with the 
+  # final concatenated data table placed in `monthly_discharge` 
+  
+}
+
+# eliminate weird negative discharge values and summaries based on less than 25 daily values per month
+monthly_discharge <- monthly_discharge %>% 
+                       dplyr::filter(count_non_na > 24) %>%
+                       dplyr::filter(discharge >= 0)
+
+# write results to a 'csv' file
+readr::write_csv(monthly_discharge, "data/monthly_discharge.rds")
+
+parallel::stopCluster(cl)
+                                     
+```
+
+# Compare to Brian Breaker's original file
+
+First read in the file created the earlier random forest work. In this work, scripts were used to eliminate sites for which significant surface water withdrawals or other flow regulation (dams) were judged to be significant; the discharge values from the affected sites are deleted and not included in subsequent analysis steps.
+
+```{r, Compare_Breaker_Q}
+monthly_discharge_orig_name <- system.file("data","dvsMonthly.rds", package = "mapRandomForest")
+monthly_discharge_orig <- readr::read_rds(monthly_discharge_orig_name)
+monthly_discharge_orig <- monthly_discharge_orig %>% 
+                            dplyr::filter(!is.na(Flow)) %>%
+                            dplyr::filter(Flow >= 0 )
+
+# Brian's `createModels.R` script contained a list of sites to remove
+removeSites <- c("03320500","03383000","03434500","03436100","03438000","03438220", 
+                 "03588000","03601990","03602500","03603000","03604400","03605555", 
+                 "03436690","03436700","03584000","03584020","03588400","03588500", 
+                 "03599450","03600500","03601630","03604000","03433641")
+
+monthly_discharge_orig <- monthly_discharge_orig %>% dplyr::filter(!siteNo %in% removeSites)
+```
+
+Now read in the monthly discharge data created as part of these vignettes.
+
+```{r Clean_vignette_data, setfig.width=16}
+monthly_discharge_name <- system.file("data","monthly_discharge.rds", package = "mapRandomForest")
+monthly_discharge_vignette <- readr::read_rds(monthly_discharge_name)
+monthly_discharge_vignette$yyyymmdd <- lubridate::ymd(paste(monthly_discharge_vignette$date,"01",sep="-"))
+
+# clip off the more recent data to make comparisons to Brian's original data
+monthly_discharge_vignette <- monthly_discharge_vignette %>%
+                                dplyr::filter(yyyymmdd < lubridate::ymd("2016-10-31")) %>%
+                                dplyr::filter(!is_regulated)
+
+
+sites_orig <- sort(unique(monthly_discharge_orig$siteNo))
+sites <- sort(unique(monthly_discharge_vignette$site_no))
+
+monthly_discharge_orig$joinfield <- with(monthly_discharge_orig, paste(siteNo,Date,sep="_"))
+monthly_discharge_vignette$joinfield <- with(monthly_discharge_vignette, paste(site_no,date,sep="_"))
+
+orig_names <- names(monthly_discharge_orig)
+# column names should be:
+#"siteNo"    "Date"      "Flow"      "baseFlow"  "isSubbed"  "joinfield"
+new_names <- orig_names
+new_names[3] <- "discharge_orig"
+new_names[4] <- "baseflow_orig"
+names(monthly_discharge_orig) <- new_names
+```
+
+Now that we have the original monthly streamflow data read in alongside our newly created monthly streamflow data, we join the two together; the `joinfield` is a concatenation of the USGS gage ID with the observation date.
+
+```{r, fig.width=10}
+comparison_df <- dplyr::left_join(x=monthly_discharge_orig, y=monthly_discharge_vignette,
+                                  by=("joinfield"="joinfield"))
+comparison_df$site_no <- as.factor(comparison_df$site_no)
+
+missing_from_current_df <- comparison_df %>% dplyr::filter(is.na(discharge))
+
+missing_records <- dplyr::count(missing_from_current_df,siteNo)
+missing_records <- missing_records[order(missing_records$n,decreasing = TRUE),]
+with(comparison_df, plot(x=discharge_orig, y=discharge))
+```
+
+The logic encapsulated in these scripts and vignettes is able to generate a dataset generally comparable to the earlier work by Brian Breaker.
+
+
+The resulting file `monthly_discharge.rds` will be joined in later steps with other covariates (precipitation, air temperature, ET) to create the input dataset provided to the random forest algorithm.
+
+----------------------------------------------
+
+# References
+
+Falcone, J.A., 2011, GAGES-II: Geospatial attributes of gages for evaluating streamflow: US Geological Survey, accessed February 28, 2017, at https://pubs.er.usgs.gov/publication/70046617.
+
+
