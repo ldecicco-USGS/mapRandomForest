@@ -4,10 +4,9 @@
 #' @param rasterDir Fully qualified directory name containing PRISM *.bil files for processing
 #' @param dateSeq A list of POSIX date objects defining the YYYY-MM
 #'
-#' @return
+#' @return data.frame
 #' @export
 #'
-#' @examples
 processPRISMRasters <- function(shp, rasterDir, dateSeq) {
 
   mytable <- shp@data

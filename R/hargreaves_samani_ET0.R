@@ -10,7 +10,6 @@
 #' @return ET0 The reference ET0 value in millimeters per month
 #' @export
 #'
-#' @examples
 hargreavesET0 <- function (tmin, tmax, day_of_year, days_in_month, precipitation, lat) {
   ET0 <- tmin * NA
   tmean <- (tmin + tmax)/2

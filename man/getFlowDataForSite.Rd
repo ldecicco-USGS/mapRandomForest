@@ -4,7 +4,7 @@
 \alias{getFlowDataForSite}
 \title{Retrieve and summarize flow data by month for a site}
 \usage{
-getFlowDataForSite(site)
+getFlowDataForSite(site, insideUSGSfirewall = FALSE)
 }
 \arguments{
 \item{site}{A character representation of a USGS gage ID}
