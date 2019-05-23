@@ -116,7 +116,7 @@ caret::dotPlot(caret::varImp(rf_model_total_flow))
 
 
 ```{r, eval=TRUE}
-baseflow_used_in_sfr_file <- system.file("data","baseflow_data_used_in_first_round_of_SRF.rds", package = "mapRandomForest")
+baseflow_used_in_sfr_file <- system.file("data","baseflow_data_used_in_first_round_of_SFR.rds", package = "mapRandomForest")
 baseflow_used_in_sfr <- readr::read_rds(baseflow_used_in_sfr_file) %>% 
                           dplyr::mutate(Date=as.Date(Date))
 
