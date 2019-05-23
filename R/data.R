@@ -231,7 +231,7 @@ NULL
 #' \itemize{
 #'   \item{\code{siteNo}}{character USGS gage ID.}
 #'   \item{\code{Date}}{date Date associated with baseflow estimate. }
-#'   \item{\code{baseFlow}}{double Estimated baseflow, in cubic feet per second.
+#'   \item{\code{baseFlow}}{double Estimated baseflow, in cubic feet per second.}
 #'   \item{\code{comment}}{character One of 'estimated gaged', 'estimated ungaged', or 'calculated'.}
 #'}
 #' @details This is the data file used in the initial application of the SFR MODFLOW package as applied to the
